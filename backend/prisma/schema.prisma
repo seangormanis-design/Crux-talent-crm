@@ -145,6 +145,10 @@ model Person {
   lawfulBasisNote   String?
   retentionReviewAt DateTime?
 
+  // Follow-up reminder: settable at any time, or alongside an interaction log.
+  followUpAt   DateTime?
+  followUpNote String?
+
   // Soft delete / anonymize (GDPR) — permanently scrubs personal fields
   isAnonymized Boolean   @default(false)
   deletedAt    DateTime?

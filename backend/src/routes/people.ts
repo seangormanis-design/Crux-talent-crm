@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { optionalEmail, optionalString, optionalUrl } from "../lib/zodHelpers";
+import { nullableDate, optionalEmail, optionalString, optionalUrl } from "../lib/zodHelpers";
 
 export const peopleRouter = Router();
 
@@ -40,6 +40,10 @@ const personSchema = z.object({
   gdprConsentNote: z.string().optional(),
   lawfulBasisNote: z.string().optional(),
   retentionReviewAt: z.coerce.date().optional(),
+
+  // Follow-up reminder
+  followUpAt: nullableDate,
+  followUpNote: optionalString,
 
   linkedPersonId: z.string().uuid().nullable().optional(),
 });

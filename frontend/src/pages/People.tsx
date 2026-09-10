@@ -160,7 +160,19 @@ const EMPTY_PERSON_FORM = {
   addressStreet: "",
   addressCity: "",
   addressPostcode: "",
+  followUpAt: "",
+  followUpNote: "",
 };
+
+function toDateInputValue(iso?: string | null): string {
+  return iso ? iso.slice(0, 10) : "";
+}
+
+function isOverdue(iso: string): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(iso) < today;
+}
 
 const INTERACTION_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "PHONE_CALL", label: "Phone call" },
@@ -179,6 +191,7 @@ export function PersonDetail() {
   const [interactionType, setInteractionType] = useState("PHONE_CALL");
   const [interactionJobId, setInteractionJobId] = useState("");
   const [interactionCompanyId, setInteractionCompanyId] = useState("");
+  const [interactionFollowUpAt, setInteractionFollowUpAt] = useState("");
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(EMPTY_PERSON_FORM);
@@ -195,6 +208,8 @@ export function PersonDetail() {
         addressStreet: p.addressStreet ?? "",
         addressCity: p.addressCity ?? "",
         addressPostcode: p.addressPostcode ?? "",
+        followUpAt: toDateInputValue(p.followUpAt),
+        followUpNote: p.followUpNote ?? "",
       });
       // Default the quick-log company link to whichever company this person
       // is already associated with, but leave it changeable.
@@ -215,8 +230,12 @@ export function PersonDetail() {
       notes: note,
       jobId: interactionJobId || undefined,
       companyId: interactionCompanyId || undefined,
+      // Only send followUpAt if the user actually touched it — omitting the
+      // key means "leave the existing reminder alone" on the backend.
+      ...(interactionFollowUpAt ? { followUpAt: interactionFollowUpAt } : {}),
     });
     setNote("");
+    setInteractionFollowUpAt("");
     load();
   }
 
@@ -330,6 +349,23 @@ export function PersonDetail() {
               />
             </Field>
           </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Follow-up reminder date">
+              <input
+                type="date"
+                className="w-full rounded border px-3 py-2 text-sm"
+                value={form.followUpAt}
+                onChange={(e) => setForm({ ...form, followUpAt: e.target.value })}
+              />
+            </Field>
+            <Field label="Follow-up note">
+              <input
+                className="w-full rounded border px-3 py-2 text-sm"
+                value={form.followUpNote}
+                onChange={(e) => setForm({ ...form, followUpNote: e.target.value })}
+              />
+            </Field>
+          </div>
           <button disabled={saving} className="rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">
             {saving ? "Saving..." : "Save"}
           </button>
@@ -360,6 +396,17 @@ export function PersonDetail() {
               {hasAddress
                 ? [person.addressStreet, person.addressCity, person.addressPostcode].filter(Boolean).join(", ")
                 : "—"}
+            </DetailRow>
+            <DetailRow label="Follow-up reminder">
+              {person.followUpAt ? (
+                <span className={isOverdue(person.followUpAt) ? "font-medium text-red-600" : ""}>
+                  {new Date(person.followUpAt).toLocaleDateString()}
+                  {person.followUpNote ? ` — ${person.followUpNote}` : ""}
+                  {isOverdue(person.followUpAt) ? " (overdue)" : ""}
+                </span>
+              ) : (
+                "—"
+              )}
             </DetailRow>
           </dl>
         </section>
@@ -428,7 +475,16 @@ export function PersonDetail() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-1.5 text-sm text-slate-600">
+              Remind me to follow up on
+              <input
+                type="date"
+                className="rounded border px-2 py-1 text-sm"
+                value={interactionFollowUpAt}
+                onChange={(e) => setInteractionFollowUpAt(e.target.value)}
+              />
+            </label>
             <button className="rounded bg-slate-900 px-4 py-2 text-sm text-white">Log</button>
           </div>
         </form>

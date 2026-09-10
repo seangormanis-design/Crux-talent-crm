@@ -12,7 +12,7 @@ dashboardRouter.get("/", async (_req, res) => {
   const staleThreshold = new Date(now.getTime() - STALE_JOB_DAYS * 24 * 60 * 60 * 1000);
   const docExpiryThreshold = new Date(now.getTime() + DOC_EXPIRY_WARNING_DAYS * 24 * 60 * 60 * 1000);
 
-  const [jobsByStage, staleJobs, expiringDocuments, recentInteractions, candidatesAwaitingResponse] =
+  const [jobsByStage, staleJobs, expiringDocuments, recentInteractions, candidatesAwaitingResponse, followUps] =
     await Promise.all([
       prisma.job.groupBy({ by: ["stage"], where: { archivedAt: null }, _count: { _all: true } }),
       prisma.job.findMany({
@@ -37,6 +37,11 @@ dashboardRouter.get("/", async (_req, res) => {
         orderBy: { updatedAt: "asc" },
         take: 20,
       }),
+      prisma.person.findMany({
+        where: { followUpAt: { not: null }, deletedAt: null, archivedAt: null },
+        orderBy: { followUpAt: "asc" },
+        take: 50,
+      }),
     ]);
 
   res.json({
@@ -46,6 +51,7 @@ dashboardRouter.get("/", async (_req, res) => {
       expiringDocuments,
       recentInteractions,
       candidatesAwaitingResponse,
+      followUps,
     },
   });
 });

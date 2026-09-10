@@ -14,7 +14,14 @@ interface DashboardData {
     expiringDocuments: any[];
     recentInteractions: any[];
     candidatesAwaitingResponse: any[];
+    followUps: any[];
   };
+}
+
+function isOverdue(iso: string): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(iso) < today;
 }
 
 export default function Dashboard() {
@@ -45,6 +52,22 @@ export default function Dashboard() {
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Activity feed</h2>
+
+        <FeedBlock title="Follow-up reminders">
+          {data.activityFeed.followUps.map((person) => (
+            <li key={person.id}>
+              <Link
+                to={`/people/${person.id}`}
+                className={isOverdue(person.followUpAt) ? "font-medium text-red-600" : "text-blue-600"}
+              >
+                {person.name}
+              </Link>{" "}
+              — {new Date(person.followUpAt).toLocaleDateString()}
+              {isOverdue(person.followUpAt) ? " (overdue)" : ""}
+              {person.followUpNote ? ` — ${person.followUpNote}` : ""}
+            </li>
+          ))}
+        </FeedBlock>
 
         <FeedBlock title="Stale jobs (no movement in 14+ days)">
           {data.activityFeed.staleJobs.map((job) => (

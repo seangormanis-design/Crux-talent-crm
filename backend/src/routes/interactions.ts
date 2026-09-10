@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { AuthenticatedRequest } from "../middleware/requireAuth";
+import { optionalString } from "../lib/zodHelpers";
 
 export const interactionsRouter = Router();
 
@@ -22,6 +23,11 @@ const interactionSchema = z.object({
   companyId: z.string().uuid().optional(),
   notes: z.string().optional(),
   occurredAt: z.coerce.date().optional(),
+
+  // Optionally set (or clear) the person's follow-up reminder in the same
+  // request as logging this interaction, rather than a separate edit.
+  followUpAt: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
+  followUpNote: optionalString,
 });
 
 interactionsRouter.get("/", async (req, res) => {
@@ -46,9 +52,17 @@ interactionsRouter.post("/", async (req: AuthenticatedRequest, res) => {
   const parsed = interactionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const interaction = await prisma.interaction.create({
-    data: { ...parsed.data, createdById: req.userId },
-  });
+  const { followUpAt, followUpNote, ...interactionFields } = parsed.data;
+  const settingFollowUp = followUpAt !== undefined;
+
+  const [interaction] = await prisma.$transaction([
+    prisma.interaction.create({
+      data: { ...interactionFields, createdById: req.userId },
+    }),
+    ...(settingFollowUp
+      ? [prisma.person.update({ where: { id: parsed.data.personId }, data: { followUpAt, followUpNote } })]
+      : []),
+  ]);
 
   res.status(201).json(interaction);
 });
