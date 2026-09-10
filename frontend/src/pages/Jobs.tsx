@@ -7,6 +7,7 @@ interface Job {
   title: string;
   stage: string;
   company: { name: string };
+  archivedAt?: string | null;
 }
 
 interface Company {
@@ -32,9 +33,10 @@ export function JobsList() {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [companyId, setCompanyId] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
 
-  function load() {
-    api.get<Job[]>("/api/jobs").then(setJobs);
+  function load(archived = showArchived) {
+    api.get<Job[]>(`/api/jobs${archived ? "?includeArchived=true" : ""}`).then(setJobs);
   }
 
   useEffect(() => {
@@ -80,6 +82,18 @@ export function JobsList() {
         </form>
       )}
 
+      <label className="mb-4 flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={showArchived}
+          onChange={(e) => {
+            setShowArchived(e.target.checked);
+            load(e.target.checked);
+          }}
+        />
+        Show archived
+      </label>
+
       <div className="overflow-hidden rounded border bg-white">
         <table className="w-full text-sm">
           <thead className="bg-slate-100 text-left">
@@ -91,11 +105,14 @@ export function JobsList() {
           </thead>
           <tbody>
             {jobs.map((j) => (
-              <tr key={j.id} className="border-t">
+              <tr key={j.id} className={`border-t ${j.archivedAt ? "opacity-50" : ""}`}>
                 <td className="px-3 py-2">
                   <Link to={`/jobs/${j.id}`} className="text-blue-600">
                     {j.title}
                   </Link>
+                  {j.archivedAt && (
+                    <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Archived</span>
+                  )}
                 </td>
                 <td className="px-3 py-2">{j.company?.name}</td>
                 <td className="px-3 py-2">{j.stage.replaceAll("_", " ")}</td>
@@ -135,15 +152,31 @@ export function JobDetail() {
     load();
   }
 
+  async function onToggleArchive() {
+    await api.post(`/api/jobs/${id}/${job.archivedAt ? "unarchive" : "archive"}`);
+    load();
+  }
+
   if (!job) return <p>Loading...</p>;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">{job.title}</h1>
-        <p className="text-sm text-slate-500">
-          {job.company?.name} · {job.location} · {job.workPreference}
-        </p>
+      {job.archivedAt && (
+        <div className="rounded border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-700">
+          This job is archived. It's hidden from the default list but nothing has been deleted.
+        </div>
+      )}
+
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">{job.title}</h1>
+          <p className="text-sm text-slate-500">
+            {job.company?.name} · {job.location} · {job.workPreference}
+          </p>
+        </div>
+        <button onClick={onToggleArchive} className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100">
+          {job.archivedAt ? "Unarchive" : "Archive"}
+        </button>
       </div>
 
       <section>

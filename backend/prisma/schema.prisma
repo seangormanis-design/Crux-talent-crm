@@ -58,6 +58,10 @@ model Company {
   relationshipStatus RelationshipStatus @default(PROSPECT)
   notes              String?
 
+  // Archive (soft-delete): hidden from default views but never hard-deleted —
+  // companies anchor jobs/interactions/documents history.
+  archivedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -141,9 +145,12 @@ model Person {
   lawfulBasisNote   String?
   retentionReviewAt DateTime?
 
-  // Soft delete / anonymize (GDPR)
+  // Soft delete / anonymize (GDPR) — permanently scrubs personal fields
   isAnonymized Boolean   @default(false)
   deletedAt    DateTime?
+
+  // Archive: hidden from default views but fully reversible, unlike anonymize.
+  archivedAt DateTime?
 
   // Linked-record feature: a candidate and a client-contact record can represent
   // the same human being over time. This self-relation lets us flip which side
@@ -224,6 +231,10 @@ model Job {
   rateMax   Decimal? @db.Decimal(10, 2)
 
   stage JobStage @default(POTENTIAL_LEAD)
+
+  // Archive (soft-delete): hidden from default views but never hard-deleted —
+  // jobs anchor pipeline/placement/interaction history.
+  archivedAt DateTime?
 
   owningContactId String?
   owningContact   Person? @relation("JobOwningContact", fields: [owningContactId], references: [id])

@@ -55,12 +55,13 @@ function toPrismaData(input: z.infer<typeof personSchema>) {
 }
 
 peopleRouter.get("/", async (req, res) => {
-  const { q, personType, skill } = req.query;
+  const { q, personType, skill, includeArchived } = req.query;
 
   const people = await prisma.person.findMany({
     where: {
       deletedAt: null,
       AND: [
+        includeArchived === "true" ? {} : { archivedAt: null },
         personType ? { personType: personType as any } : {},
         q
           ? {
@@ -141,6 +142,24 @@ peopleRouter.post("/:id/set-primary-link", async (req, res) => {
   });
 
   res.status(204).send();
+});
+
+// Archive: hidden from default views but fully reversible — distinct from
+// the GDPR anonymize below, which permanently scrubs personal data.
+peopleRouter.post("/:id/archive", async (req, res) => {
+  const person = await prisma.person.update({
+    where: { id: req.params.id },
+    data: { archivedAt: new Date() },
+  });
+  res.json(person);
+});
+
+peopleRouter.post("/:id/unarchive", async (req, res) => {
+  const person = await prisma.person.update({
+    where: { id: req.params.id },
+    data: { archivedAt: null },
+  });
+  res.json(person);
 });
 
 // GDPR soft-delete + anonymize: never hard-deletes interaction/pipeline history,

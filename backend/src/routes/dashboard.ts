@@ -14,9 +14,9 @@ dashboardRouter.get("/", async (_req, res) => {
 
   const [jobsByStage, staleJobs, expiringDocuments, recentInteractions, candidatesAwaitingResponse] =
     await Promise.all([
-      prisma.job.groupBy({ by: ["stage"], _count: { _all: true } }),
+      prisma.job.groupBy({ by: ["stage"], where: { archivedAt: null }, _count: { _all: true } }),
       prisma.job.findMany({
-        where: { updatedAt: { lt: staleThreshold }, stage: { notIn: ["PLACED", "REJECTED"] } },
+        where: { updatedAt: { lt: staleThreshold }, stage: { notIn: ["PLACED", "REJECTED"] }, archivedAt: null },
         include: { company: true },
         orderBy: { updatedAt: "asc" },
         take: 20,
@@ -32,7 +32,7 @@ dashboardRouter.get("/", async (_req, res) => {
         include: { person: true, job: true },
       }),
       prisma.jobCandidate.findMany({
-        where: { stage: "CV_SENT" },
+        where: { stage: "CV_SENT", job: { archivedAt: null }, candidate: { archivedAt: null } },
         include: { candidate: true, job: { include: { company: true } } },
         orderBy: { updatedAt: "asc" },
         take: 20,

@@ -11,6 +11,7 @@ const CANDIDATE_STAGES = ["SOURCED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFF
 // independent of the job's overall stage.
 pipelineRouter.get("/board", async (_req, res) => {
   const pairings = await prisma.jobCandidate.findMany({
+    where: { job: { archivedAt: null }, candidate: { archivedAt: null } },
     include: { job: { include: { company: true } }, candidate: true },
     orderBy: { updatedAt: "desc" },
   });

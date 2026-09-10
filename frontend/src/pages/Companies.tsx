@@ -14,17 +14,22 @@ interface Company {
   addressPostcode?: string;
   relationshipStatus: string;
   notes?: string;
+  archivedAt?: string | null;
 }
 
 export function CompaniesList() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [q, setQ] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const navigate = useNavigate();
 
-  function load(query = "") {
-    api.get<Company[]>(`/api/companies${query ? `?q=${encodeURIComponent(query)}` : ""}`).then(setCompanies);
+  function load(query = q, archived = showArchived) {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (archived) params.set("includeArchived", "true");
+    api.get<Company[]>(`/api/companies?${params.toString()}`).then(setCompanies);
   }
 
   useEffect(() => load(), []);
@@ -62,15 +67,28 @@ export function CompaniesList() {
         </form>
       )}
 
-      <input
-        className="mb-4 w-full max-w-sm rounded border px-3 py-2 text-sm"
-        placeholder="Search companies..."
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          load(e.target.value);
-        }}
-      />
+      <div className="mb-4 flex items-center gap-3">
+        <input
+          className="w-full max-w-sm rounded border px-3 py-2 text-sm"
+          placeholder="Search companies..."
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            load(e.target.value, showArchived);
+          }}
+        />
+        <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(e) => {
+              setShowArchived(e.target.checked);
+              load(q, e.target.checked);
+            }}
+          />
+          Show archived
+        </label>
+      </div>
 
       <div className="overflow-hidden rounded border bg-white">
         <table className="w-full text-sm">
@@ -83,11 +101,14 @@ export function CompaniesList() {
           </thead>
           <tbody>
             {companies.map((c) => (
-              <tr key={c.id} className="border-t">
+              <tr key={c.id} className={`border-t ${c.archivedAt ? "opacity-50" : ""}`}>
                 <td className="px-3 py-2">
                   <Link to={`/companies/${c.id}`} className="text-blue-600">
                     {c.name}
                   </Link>
+                  {c.archivedAt && (
+                    <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Archived</span>
+                  )}
                 </td>
                 <td className="px-3 py-2">{c.companyType?.replaceAll("_", " ") ?? "—"}</td>
                 <td className="px-3 py-2">{c.relationshipStatus.replaceAll("_", " ")}</td>
@@ -144,12 +165,23 @@ export function CompanyDetail() {
     }
   }
 
+  async function onToggleArchive() {
+    await api.post(`/api/companies/${id}/${company.archivedAt ? "unarchive" : "archive"}`);
+    load();
+  }
+
   if (!company) return <p>Loading...</p>;
 
   const hasAddress = company.addressStreet || company.addressCity || company.addressPostcode;
 
   return (
     <div className="space-y-6">
+      {company.archivedAt && (
+        <div className="rounded border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-700">
+          This company is archived. It's hidden from the default list but nothing has been deleted.
+        </div>
+      )}
+
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold">{company.name}</h1>
@@ -157,12 +189,20 @@ export function CompanyDetail() {
             {company.companyType?.replaceAll("_", " ")} · {company.relationshipStatus.replaceAll("_", " ")}
           </p>
         </div>
-        <button
-          onClick={() => setEditing((e) => !e)}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
-        >
-          {editing ? "Cancel" : "Edit details"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setEditing((e) => !e)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            {editing ? "Cancel" : "Edit details"}
+          </button>
+          <button
+            onClick={onToggleArchive}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            {company.archivedAt ? "Unarchive" : "Archive"}
+          </button>
+        </div>
       </div>
 
       {editing ? (

@@ -21,11 +21,12 @@ const companySchema = z.object({
 });
 
 companiesRouter.get("/", async (req, res) => {
-  const { q, relationshipStatus, companyType } = req.query;
+  const { q, relationshipStatus, companyType, includeArchived } = req.query;
 
   const companies = await prisma.company.findMany({
     where: {
       AND: [
+        includeArchived === "true" ? {} : { archivedAt: null },
         q
           ? {
               OR: [
@@ -78,5 +79,20 @@ companiesRouter.patch("/:id", async (req, res) => {
   res.json(company);
 });
 
-// No hard delete for companies — they anchor jobs/interactions/documents history.
-// Use relationshipStatus = DO_NOT_CONTACT instead.
+// No hard delete for companies — they anchor jobs/interactions/documents
+// history. Archive instead: hidden from default views, fully reversible.
+companiesRouter.post("/:id/archive", async (req, res) => {
+  const company = await prisma.company.update({
+    where: { id: req.params.id },
+    data: { archivedAt: new Date() },
+  });
+  res.json(company);
+});
+
+companiesRouter.post("/:id/unarchive", async (req, res) => {
+  const company = await prisma.company.update({
+    where: { id: req.params.id },
+    data: { archivedAt: null },
+  });
+  res.json(company);
+});

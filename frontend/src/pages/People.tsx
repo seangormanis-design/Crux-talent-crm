@@ -9,21 +9,24 @@ interface Person {
   email?: string;
   currentTitle?: string;
   jobTitle?: string;
+  archivedAt?: string | null;
 }
 
 export function PeopleList() {
   const [people, setPeople] = useState<Person[]>([]);
   const [q, setQ] = useState("");
   const [personType, setPersonType] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [newType, setNewType] = useState<"CANDIDATE" | "CLIENT_CONTACT">("CANDIDATE");
   const navigate = useNavigate();
 
-  function load(query = q, type = personType) {
+  function load(query = q, type = personType, archived = showArchived) {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (type) params.set("personType", type);
+    if (archived) params.set("includeArchived", "true");
     api.get<Person[]>(`/api/people?${params.toString()}`).then(setPeople);
   }
 
@@ -65,14 +68,14 @@ export function PeopleList() {
         </form>
       )}
 
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <input
           className="w-full max-w-sm rounded border px-3 py-2 text-sm"
           placeholder="Search people..."
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
-            load(e.target.value, personType);
+            load(e.target.value, personType, showArchived);
           }}
         />
         <select
@@ -80,13 +83,24 @@ export function PeopleList() {
           value={personType}
           onChange={(e) => {
             setPersonType(e.target.value);
-            load(q, e.target.value);
+            load(q, e.target.value, showArchived);
           }}
         >
           <option value="">All types</option>
           <option value="CANDIDATE">Candidates</option>
           <option value="CLIENT_CONTACT">Client contacts</option>
         </select>
+        <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(e) => {
+              setShowArchived(e.target.checked);
+              load(q, personType, e.target.checked);
+            }}
+          />
+          Show archived
+        </label>
       </div>
 
       <div className="overflow-hidden rounded border bg-white">
@@ -101,11 +115,14 @@ export function PeopleList() {
           </thead>
           <tbody>
             {people.map((p) => (
-              <tr key={p.id} className="border-t">
+              <tr key={p.id} className={`border-t ${p.archivedAt ? "opacity-50" : ""}`}>
                 <td className="px-3 py-2">
                   <Link to={`/people/${p.id}`} className="text-blue-600">
                     {p.name}
                   </Link>
+                  {p.archivedAt && (
+                    <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Archived</span>
+                  )}
                 </td>
                 <td className="px-3 py-2">{p.personType === "CANDIDATE" ? "Candidate" : "Client contact"}</td>
                 <td className="px-3 py-2">{p.currentTitle ?? p.jobTitle ?? "—"}</td>
@@ -174,12 +191,23 @@ export function PersonDetail() {
     }
   }
 
+  async function onToggleArchive() {
+    await api.post(`/api/people/${id}/${person.archivedAt ? "unarchive" : "archive"}`);
+    load();
+  }
+
   if (!person) return <p>Loading...</p>;
 
   const hasAddress = person.addressStreet || person.addressCity || person.addressPostcode;
 
   return (
     <div className="space-y-6">
+      {person.archivedAt && (
+        <div className="rounded border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-700">
+          This person is archived. They're hidden from the default list but nothing has been deleted.
+        </div>
+      )}
+
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold">{person.name}</h1>
@@ -187,12 +215,20 @@ export function PersonDetail() {
             {person.personType === "CANDIDATE" ? person.currentTitle : person.jobTitle}
           </p>
         </div>
-        <button
-          onClick={() => setEditing((e) => !e)}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
-        >
-          {editing ? "Cancel" : "Edit details"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setEditing((e) => !e)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            {editing ? "Cancel" : "Edit details"}
+          </button>
+          <button
+            onClick={onToggleArchive}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            {person.archivedAt ? "Unarchive" : "Archive"}
+          </button>
+        </div>
       </div>
 
       {editing ? (

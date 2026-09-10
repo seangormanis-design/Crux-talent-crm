@@ -42,11 +42,12 @@ function toPrismaData(input: z.infer<typeof jobSchema>) {
 }
 
 jobsRouter.get("/", async (req, res) => {
-  const { q, stage, companyId } = req.query;
+  const { q, stage, companyId, includeArchived } = req.query;
 
   const jobs = await prisma.job.findMany({
     where: {
       AND: [
+        includeArchived === "true" ? {} : { archivedAt: null },
         q ? { title: { contains: String(q), mode: "insensitive" } } : {},
         stage ? { stage: stage as any } : {},
         companyId ? { companyId: String(companyId) } : {},
@@ -94,6 +95,24 @@ jobsRouter.patch("/:id", async (req, res) => {
   const job = await prisma.job.update({
     where: { id: req.params.id },
     data: toPrismaData(parsed.data as any) as any,
+  });
+  res.json(job);
+});
+
+// Archive: hidden from default views but fully reversible — jobs anchor
+// pipeline/placement/interaction history, so there is no hard delete.
+jobsRouter.post("/:id/archive", async (req, res) => {
+  const job = await prisma.job.update({
+    where: { id: req.params.id },
+    data: { archivedAt: new Date() },
+  });
+  res.json(job);
+});
+
+jobsRouter.post("/:id/unarchive", async (req, res) => {
+  const job = await prisma.job.update({
+    where: { id: req.params.id },
+    data: { archivedAt: null },
   });
   res.json(job);
 });

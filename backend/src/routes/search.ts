@@ -14,15 +14,19 @@ searchRouter.get("/", async (req, res) => {
 
   const [people, companies, jobs, documents, interactions] = await Promise.all([
     prisma.person.findMany({
-      where: { deletedAt: null, OR: [{ name: contains }, { email: contains }, { motivationsText: contains }] },
+      where: {
+        deletedAt: null,
+        archivedAt: null,
+        OR: [{ name: contains }, { email: contains }, { motivationsText: contains }],
+      },
       take: 20,
     }),
     prisma.company.findMany({
-      where: { OR: [{ name: contains }, { notes: contains }] },
+      where: { archivedAt: null, OR: [{ name: contains }, { notes: contains }] },
       take: 20,
     }),
     prisma.job.findMany({
-      where: { title: contains },
+      where: { archivedAt: null, title: contains },
       include: { company: true },
       take: 20,
     }),
