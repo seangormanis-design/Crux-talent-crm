@@ -180,16 +180,22 @@ model Person {
   @@index([currentEmployerId])
 }
 
+// A hierarchical tag tree (any depth), shared by Person and Job skill
+// assignment — not a fixed set of hardcoded categories. Grows as skills are
+// added via the picker; parentId is null for a top-level branch.
 model Skill {
-  id       String        @id @default(uuid())
-  name     String        @unique
-  category String?
+  id       String  @id @default(uuid())
+  name     String  @unique
+  parentId String?
+  parent   Skill?  @relation("SkillHierarchy", fields: [parentId], references: [id])
+  children Skill[] @relation("SkillHierarchy")
 
   people PersonSkill[]
   jobsEssential Job[] @relation("JobEssentialSkills")
   jobsIdeal     Job[] @relation("JobIdealSkills")
 
   @@map("skills")
+  @@index([parentId])
 }
 
 model PersonSkill {
@@ -198,6 +204,10 @@ model PersonSkill {
   person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
   skillId  String
   skill    Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  // A candidate's real specialisms vs. everything else they're merely
+  // competent in — a flag on the assignment itself, not a separate list.
+  isPrimary Boolean @default(false)
 
   @@unique([personId, skillId])
   @@map("person_skills")

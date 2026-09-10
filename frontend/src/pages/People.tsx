@@ -5,6 +5,7 @@ import DuplicateWarningModal from "../components/DuplicateWarningModal";
 import CvParsePanel from "../components/CvParsePanel";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 import InlineField from "../components/InlineField";
+import SkillPicker from "../components/SkillPicker";
 
 interface Person {
   id: string;
@@ -21,7 +22,7 @@ interface Person {
   company?: { name: string } | null;
   currentEmployer?: { name: string } | null;
   interactions?: { occurredAt: string }[];
-  skills?: { skill: { id: string; name: string } }[];
+  skills?: { skill: { id: string; name: string }; isPrimary: boolean }[];
   jobApplications?: { stage: string; job: { title: string } }[];
 }
 
@@ -74,7 +75,13 @@ function cellValue(p: Person, key: string): string {
     case "location":
       return p.location ?? "—";
     case "skills":
-      return p.skills?.map((s) => s.skill.name).join(", ") || "—";
+      return (
+        p.skills
+          ?.slice()
+          .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+          .map((s) => (s.isPrimary ? `★ ${s.skill.name}` : s.skill.name))
+          .join(", ") || "—"
+      );
     case "stage": {
       const latest = p.jobApplications?.[0];
       return latest ? `${latest.stage.replaceAll("_", " ")} (${latest.job.title})` : "—";
@@ -660,8 +667,28 @@ export function PersonDetail() {
           </p>
           <p className="mt-1">
             <strong>Skills:</strong>{" "}
-            {person.skills?.map((s: any) => s.skill.name).join(", ") || "—"}
+            {person.skills?.length
+              ? [...person.skills]
+                  .sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary))
+                  .map((s: any) => (s.isPrimary ? `★ ${s.skill.name}` : s.skill.name))
+                  .join(", ")
+              : "—"}
           </p>
+        </section>
+      )}
+
+      {person.personType === "CANDIDATE" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <h2 className="mb-2 font-medium">Skills</h2>
+          <p className="mb-2 text-xs text-slate-500">
+            Tick a skill to assign it. Mark up to 5 as Primary — their real specialisms — the rest count as Secondary.
+          </p>
+          <SkillPicker
+            mode="person"
+            personId={person.id}
+            assigned={(person.skills ?? []).map((s: any) => ({ skillId: s.skill.id, isPrimary: s.isPrimary }))}
+            onChange={load}
+          />
         </section>
       )}
 

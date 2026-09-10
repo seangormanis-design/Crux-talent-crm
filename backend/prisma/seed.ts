@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/auth";
+import { seedSkillTree } from "../src/lib/skillTree";
 
 const prisma = new PrismaClient();
 
@@ -17,11 +18,9 @@ async function main() {
     },
   });
 
-  const skillNames = ["D365 F&O", "D365 CE", "Power Platform", "Power BI", "Azure", "Data & AI"];
-
-  const skills = await Promise.all(
-    skillNames.map((name) => prisma.skill.upsert({ where: { name }, update: {}, create: { name } }))
-  );
+  await seedSkillTree(prisma);
+  const d365Fo = await prisma.skill.findUniqueOrThrow({ where: { name: "D365 F&O" } });
+  const powerBi = await prisma.skill.findUniqueOrThrow({ where: { name: "Power BI" } });
 
   const company = await prisma.company.create({
     data: {
@@ -64,7 +63,7 @@ async function main() {
       motivationsText: "Wants product-facing work and more architectural ownership.",
       gdprConsent: true,
       source: "LINKEDIN",
-      skills: { create: [{ skillId: skills[0].id }, { skillId: skills[3].id }] },
+      skills: { create: [{ skillId: d365Fo.id, isPrimary: true }, { skillId: powerBi.id }] },
     },
   });
 
@@ -79,8 +78,8 @@ async function main() {
       rateMax: 700,
       stage: "CV_SOURCING",
       owningContactId: clientContact.id,
-      essentialSkills: { connect: [{ id: skills[0].id }] },
-      idealSkills: { connect: [{ id: skills[3].id }] },
+      essentialSkills: { connect: [{ id: d365Fo.id }] },
+      idealSkills: { connect: [{ id: powerBi.id }] },
     },
   });
 

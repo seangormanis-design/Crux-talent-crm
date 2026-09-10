@@ -181,6 +181,45 @@ peopleRouter.patch("/:id", async (req, res) => {
   res.json(person);
 });
 
+const MAX_PRIMARY_SKILLS = 5;
+
+const setSkillsSchema = z.object({
+  skills: z
+    .array(z.object({ skillId: z.string().uuid(), isPrimary: z.boolean().optional() }))
+    .max(200),
+});
+
+// Dedicated skill-assignment endpoint (separate from the generic PATCH's
+// skillIds, which CV parsing/CSV import use for a plain replace-all): this
+// one carries the Primary/Secondary flag, which lives on the assignment
+// itself, not as a separate list. Full replace of this person's skill set.
+peopleRouter.put("/:id/skills", async (req, res) => {
+  const parsed = setSkillsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const primaryCount = parsed.data.skills.filter((s) => s.isPrimary).length;
+  if (primaryCount > MAX_PRIMARY_SKILLS) {
+    return res.status(400).json({ error: `You can mark at most ${MAX_PRIMARY_SKILLS} skills as Primary.` });
+  }
+
+  await prisma.$transaction([
+    prisma.personSkill.deleteMany({ where: { personId: req.params.id } }),
+    prisma.personSkill.createMany({
+      data: parsed.data.skills.map((s) => ({
+        personId: req.params.id,
+        skillId: s.skillId,
+        isPrimary: s.isPrimary ?? false,
+      })),
+    }),
+  ]);
+
+  const person = await prisma.person.findUnique({
+    where: { id: req.params.id },
+    include: { skills: { include: { skill: true } } },
+  });
+  res.json(person);
+});
+
 // Flip which linked record (candidate vs client contact) is primary, without
 // losing history on either side of the relationship.
 peopleRouter.post("/:id/set-primary-link", async (req, res) => {

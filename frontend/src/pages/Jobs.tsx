@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
+import SkillPicker from "../components/SkillPicker";
 
 interface Job {
   id: string;
@@ -195,6 +196,18 @@ export function JobDetail() {
             </option>
           ))}
         </select>
+      </section>
+
+      <section className="rounded border bg-white p-3">
+        <h2 className="mb-2 font-medium">Skills</h2>
+        <p className="mb-2 text-xs text-slate-500">Tick Essential and/or Ideal for each skill this role needs.</p>
+        <SkillPicker
+          mode="job"
+          jobId={job.id}
+          essentialSkillIds={(job.essentialSkills ?? []).map((s: any) => s.id)}
+          idealSkillIds={(job.idealSkills ?? []).map((s: any) => s.id)}
+          onChange={load}
+        />
       </section>
 
       <section>
