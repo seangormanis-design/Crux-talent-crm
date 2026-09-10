@@ -6,6 +6,7 @@ import CvParsePanel from "../components/CvParsePanel";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 import InlineField from "../components/InlineField";
 import SkillPicker from "../components/SkillPicker";
+import LinkPersonModal from "../components/LinkPersonModal";
 import { fullName } from "../lib/personName";
 
 interface Person {
@@ -612,6 +613,7 @@ export function PersonDetail() {
   const [interactionCompanyId, setInteractionCompanyId] = useState("");
   const [interactionFollowUpAt, setInteractionFollowUpAt] = useState("");
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [showLinkModal, setShowLinkModal] = useState(false);
 
   function load() {
     api.get(`/api/people/${id}`).then((p: any) => {
@@ -654,7 +656,19 @@ export function PersonDetail() {
     load();
   }
 
+  async function setPrimaryLink() {
+    await api.post(`/api/people/${id}/set-primary-link`);
+    load();
+  }
+
+  async function unlink() {
+    await api.post(`/api/people/${id}/unlink`);
+    load();
+  }
+
   if (!person) return <p>Loading...</p>;
+
+  const linkTargetType = person.personType === "CANDIDATE" ? "CLIENT_CONTACT" : "CANDIDATE";
 
   return (
     <div className="space-y-6">
@@ -662,6 +676,48 @@ export function PersonDetail() {
         <div className="rounded border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-700">
           This person is archived. They're hidden from the default list but nothing has been deleted.
         </div>
+      )}
+
+      {person.linkedPerson ? (
+        <div className="flex items-center justify-between rounded border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
+          <p>
+            Also linked to{" "}
+            <Link to={`/people/${person.linkedPerson.id}`} className="font-medium text-blue-700 underline">
+              {fullName(person.linkedPerson)}
+            </Link>{" "}
+            ({person.linkedPerson.personType === "CANDIDATE" ? "Candidate" : "Client contact"})
+            {person.isPrimaryLink && " — this is their primary role"}
+          </p>
+          <div className="flex shrink-0 gap-2">
+            {!person.isPrimaryLink && (
+              <button onClick={setPrimaryLink} className="rounded border border-blue-300 px-2 py-1 text-xs hover:bg-white">
+                Make this the primary role
+              </button>
+            )}
+            <button onClick={unlink} className="rounded border border-blue-300 px-2 py-1 text-xs hover:bg-white">
+              Unlink
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowLinkModal(true)}
+          className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+        >
+          Link to existing {linkTargetType === "CANDIDATE" ? "candidate" : "client contact"}
+        </button>
+      )}
+
+      {showLinkModal && (
+        <LinkPersonModal
+          personId={person.id}
+          targetType={linkTargetType}
+          onLinked={() => {
+            setShowLinkModal(false);
+            load();
+          }}
+          onCancel={() => setShowLinkModal(false)}
+        />
       )}
 
       <div className="flex items-start justify-between">
@@ -871,14 +927,25 @@ export function PersonDetail() {
       </section>
 
       <section>
-        <h2 className="mb-2 font-medium">Interaction history</h2>
+        <h2 className="mb-2 font-medium">
+          Interaction history
+          {person.linkedPerson && <span className="ml-1 text-xs font-normal text-slate-400">(combined with linked record)</span>}
+        </h2>
         <ul className="space-y-1 text-sm">
-          {person.interactions?.map((i: any) => (
+          {(person.combinedInteractions ?? person.interactions)?.map((i: any) => (
             <li key={i.id} className="rounded border bg-white p-2">
               <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
               {i.type.replaceAll("_", " ")} — <span className="whitespace-pre-wrap">{i.notes}</span>
+              {person.linkedPerson && i.sourcePersonId === person.linkedPerson.id && (
+                <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
+                  via {fullName(person.linkedPerson)}
+                </span>
+              )}
             </li>
           ))}
+          {!(person.combinedInteractions ?? person.interactions)?.length && (
+            <li className="text-slate-400">None yet</li>
+          )}
         </ul>
       </section>
       </div>

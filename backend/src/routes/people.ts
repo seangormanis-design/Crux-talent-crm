@@ -151,7 +151,26 @@ peopleRouter.get("/:id", async (req, res) => {
     },
   });
   if (!person) return res.status(404).json({ error: "Person not found" });
-  res.json(person);
+
+  // The link is stored as a single directed edge (linkedPersonId), but a
+  // record can be on either end of it — resolve whichever side applies here.
+  const linkedPerson = person.linkedPerson ?? person.linkedFrom[0] ?? null;
+
+  // Combined interaction history: nothing from either side of the link is
+  // lost once someone becomes both a candidate and a client contact.
+  let combinedInteractions = person.interactions.map((i) => ({ ...i, sourcePersonId: person.id }));
+  if (linkedPerson) {
+    const linkedInteractions = await prisma.interaction.findMany({
+      where: { personId: linkedPerson.id },
+      orderBy: { occurredAt: "desc" },
+    });
+    combinedInteractions = [
+      ...combinedInteractions,
+      ...linkedInteractions.map((i) => ({ ...i, sourcePersonId: linkedPerson.id })),
+    ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+  }
+
+  res.json({ ...person, linkedPerson, combinedInteractions });
 });
 
 peopleRouter.post("/", async (req, res) => {
@@ -226,18 +245,89 @@ peopleRouter.put("/:id/skills", async (req, res) => {
   res.json(person);
 });
 
+// A link is a single directed edge (linkedPersonId), but either side can be
+// the one we're currently looking at — this resolves the partner regardless
+// of which side owns the foreign key.
+async function findLinkedPersonId(personId: string): Promise<string | null> {
+  const person = await prisma.person.findUnique({ where: { id: personId }, select: { linkedPersonId: true } });
+  if (person?.linkedPersonId) return person.linkedPersonId;
+  const linkedFrom = await prisma.person.findFirst({ where: { linkedPersonId: personId }, select: { id: true } });
+  return linkedFrom?.id ?? null;
+}
+
+const linkSchema = z.object({ targetPersonId: z.string().uuid() });
+
+// "Link to existing person" — connects a Candidate and Client Contact record
+// that represent the same real person. Deliberately one link at a time per
+// person (enforced by the @unique on linkedPersonId plus these checks).
+peopleRouter.post("/:id/link", async (req, res) => {
+  const parsed = linkSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { targetPersonId } = parsed.data;
+
+  if (targetPersonId === req.params.id) {
+    return res.status(400).json({ error: "A person can't be linked to themselves" });
+  }
+
+  const [person, target] = await Promise.all([
+    prisma.person.findUnique({ where: { id: req.params.id } }),
+    prisma.person.findUnique({ where: { id: targetPersonId } }),
+  ]);
+  if (!person || !target) return res.status(404).json({ error: "Person not found" });
+
+  if (person.personType === target.personType) {
+    return res.status(400).json({ error: "Can only link a Candidate to a Client Contact record" });
+  }
+
+  const [existingPersonLink, existingTargetLink] = await Promise.all([
+    findLinkedPersonId(person.id),
+    findLinkedPersonId(target.id),
+  ]);
+  if (existingPersonLink) return res.status(400).json({ error: "This record is already linked to another person" });
+  if (existingTargetLink) return res.status(400).json({ error: "That record is already linked to another person" });
+
+  await prisma.$transaction([
+    prisma.person.update({ where: { id: person.id }, data: { linkedPersonId: target.id, isPrimaryLink: true } }),
+    prisma.person.update({ where: { id: target.id }, data: { isPrimaryLink: false } }),
+  ]);
+
+  res.status(204).send();
+});
+
+peopleRouter.post("/:id/unlink", async (req, res) => {
+  const person = await prisma.person.findUnique({ where: { id: req.params.id } });
+  if (!person) return res.status(404).json({ error: "Person not found" });
+
+  // Whichever side owns the linkedPersonId foreign key is the one that
+  // needs clearing — the other side never had it set.
+  if (person.linkedPersonId) {
+    await prisma.person.update({ where: { id: person.id }, data: { linkedPersonId: null, isPrimaryLink: true } });
+  } else {
+    const owner = await prisma.person.findFirst({ where: { linkedPersonId: person.id } });
+    if (owner) {
+      await prisma.$transaction([
+        prisma.person.update({ where: { id: owner.id }, data: { linkedPersonId: null, isPrimaryLink: true } }),
+        prisma.person.update({ where: { id: person.id }, data: { isPrimaryLink: true } }),
+      ]);
+    }
+  }
+
+  res.status(204).send();
+});
+
 // Flip which linked record (candidate vs client contact) is primary, without
 // losing history on either side of the relationship.
 peopleRouter.post("/:id/set-primary-link", async (req, res) => {
   const person = await prisma.person.findUnique({ where: { id: req.params.id } });
   if (!person) return res.status(404).json({ error: "Person not found" });
 
-  await prisma.$transaction(async (tx) => {
-    await tx.person.update({ where: { id: req.params.id }, data: { isPrimaryLink: true } });
-    if (person.linkedPersonId) {
-      await tx.person.update({ where: { id: person.linkedPersonId }, data: { isPrimaryLink: false } });
-    }
-  });
+  const partnerId = await findLinkedPersonId(person.id);
+  if (!partnerId) return res.status(400).json({ error: "This record isn't linked to another person" });
+
+  await prisma.$transaction([
+    prisma.person.update({ where: { id: person.id }, data: { isPrimaryLink: true } }),
+    prisma.person.update({ where: { id: partnerId }, data: { isPrimaryLink: false } }),
+  ]);
 
   res.status(204).send();
 });

@@ -161,7 +161,11 @@ model Person {
   // Linked-record feature: a candidate and a client-contact record can represent
   // the same human being over time. This self-relation lets us flip which side
   // is "primary" without losing history on either record.
-  linkedPersonId String?
+  // @unique enforces "at most one link at a time" on the target side — a
+  // given person can only ever be pointed at by one other record. The
+  // owning side is naturally capped at one link since linkedPersonId is a
+  // single scalar field, not a list.
+  linkedPersonId String?  @unique
   linkedPerson   Person?  @relation("PersonLink", fields: [linkedPersonId], references: [id])
   linkedFrom     Person[] @relation("PersonLink")
   isPrimaryLink  Boolean  @default(true)
