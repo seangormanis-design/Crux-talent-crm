@@ -7,6 +7,7 @@ import { authRouter } from "./routes/auth";
 import { companiesRouter } from "./routes/companies";
 import { peopleRouter } from "./routes/people";
 import { skillsRouter } from "./routes/skills";
+import { roleTypesRouter } from "./routes/roleTypes";
 import { jobsRouter } from "./routes/jobs";
 import { pipelineRouter } from "./routes/pipeline";
 import { documentsRouter } from "./routes/documents";
@@ -34,6 +35,7 @@ export function buildApp() {
   app.use("/api/companies", requireAuth, companiesRouter);
   app.use("/api/people", requireAuth, peopleRouter);
   app.use("/api/skills", requireAuth, skillsRouter);
+  app.use("/api/role-types", requireAuth, roleTypesRouter);
   app.use("/api/jobs", requireAuth, jobsRouter);
   app.use("/api/pipeline", requireAuth, pipelineRouter);
   app.use("/api/documents", requireAuth, documentsRouter);

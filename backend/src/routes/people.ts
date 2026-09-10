@@ -56,6 +56,7 @@ const personSchema = z.object({
   availability: z.string().optional(),
   motivationsText: z.string().optional(),
   skillIds: z.array(z.string().uuid()).optional(),
+  roleTypeIds: z.array(z.string().uuid()).optional(),
 
   // Client contact fields
   companyId: z.string().uuid().optional(),
@@ -78,7 +79,7 @@ const personSchema = z.object({
 });
 
 async function toPrismaData(input: z.infer<typeof personSchema>) {
-  const { skillIds, currentEmployerName, ...rest } = input;
+  const { skillIds, roleTypeIds, currentEmployerName, ...rest } = input;
   const resolvedEmployerId = currentEmployerName
     ? await resolveCompanyIdByName(prisma, currentEmployerName)
     : undefined;
@@ -89,6 +90,7 @@ async function toPrismaData(input: z.infer<typeof personSchema>) {
     ...(skillIds
       ? { skills: { create: skillIds.map((skillId) => ({ skillId })) } }
       : {}),
+    ...(roleTypeIds ? { roleTypes: { connect: roleTypeIds.map((id) => ({ id })) } } : {}),
   };
 }
 
@@ -140,6 +142,7 @@ peopleRouter.get("/:id", async (req, res) => {
     where: { id: req.params.id },
     include: {
       skills: { include: { skill: true } },
+      roleTypes: true,
       documents: { include: { versions: true } },
       interactions: { orderBy: { occurredAt: "desc" } },
       jobApplications: { include: { job: true } },
@@ -185,7 +188,7 @@ peopleRouter.patch("/:id", async (req, res) => {
   const parsed = personSchema.partial().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { skillIds, currentEmployerName, ...rest } = parsed.data;
+  const { skillIds, roleTypeIds, currentEmployerName, ...rest } = parsed.data;
   const resolvedEmployerId = currentEmployerName
     ? await resolveCompanyIdByName(prisma, currentEmployerName)
     : undefined;
@@ -199,7 +202,11 @@ peopleRouter.patch("/:id", async (req, res) => {
     }
     return tx.person.update({
       where: { id: req.params.id },
-      data: { ...rest, ...(resolvedEmployerId ? { currentEmployerId: resolvedEmployerId } : {}) },
+      data: {
+        ...rest,
+        ...(resolvedEmployerId ? { currentEmployerId: resolvedEmployerId } : {}),
+        ...(roleTypeIds ? { roleTypes: { set: roleTypeIds.map((id) => ({ id })) } } : {}),
+      },
     });
   });
 

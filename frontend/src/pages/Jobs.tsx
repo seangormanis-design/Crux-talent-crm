@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 import SkillPicker from "../components/SkillPicker";
+import RoleTypePicker from "../components/RoleTypePicker";
 import { fullName } from "../lib/personName";
 
 interface Job {
@@ -197,6 +198,18 @@ export function JobDetail() {
             </option>
           ))}
         </select>
+      </section>
+
+      <section className="rounded border bg-white p-3">
+        <h2 className="mb-2 font-medium">Role Type</h2>
+        <p className="mb-2 text-xs text-slate-500">What this role requires — select one or more.</p>
+        <RoleTypePicker
+          selectedIds={(job.roleTypes ?? []).map((rt: any) => rt.id)}
+          onSave={async (roleTypeIds) => {
+            await api.patch(`/api/jobs/${job.id}`, { roleTypeIds });
+            load();
+          }}
+        />
       </section>
 
       <section className="rounded border bg-white p-3">

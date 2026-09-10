@@ -18,6 +18,7 @@ const jobSchema = z.object({
   owningContactId: z.string().uuid().optional(),
   essentialSkillIds: z.array(z.string().uuid()).optional(),
   idealSkillIds: z.array(z.string().uuid()).optional(),
+  roleTypeIds: z.array(z.string().uuid()).optional(),
 });
 
 const JOB_STAGES = [
@@ -33,11 +34,12 @@ const JOB_STAGES = [
 ] as const;
 
 function toPrismaData(input: z.infer<typeof jobSchema>) {
-  const { essentialSkillIds, idealSkillIds, ...rest } = input;
+  const { essentialSkillIds, idealSkillIds, roleTypeIds, ...rest } = input;
   return {
     ...rest,
     ...(essentialSkillIds ? { essentialSkills: { set: essentialSkillIds.map((id) => ({ id })) } } : {}),
     ...(idealSkillIds ? { idealSkills: { set: idealSkillIds.map((id) => ({ id })) } } : {}),
+    ...(roleTypeIds ? { roleTypes: { set: roleTypeIds.map((id) => ({ id })) } } : {}),
   };
 }
 
@@ -53,7 +55,7 @@ jobsRouter.get("/", async (req, res) => {
         companyId ? { companyId: String(companyId) } : {},
       ],
     },
-    include: { company: true, essentialSkills: true, idealSkills: true, candidates: true },
+    include: { company: true, essentialSkills: true, idealSkills: true, roleTypes: true, candidates: true },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -67,6 +69,7 @@ jobsRouter.get("/:id", async (req, res) => {
       company: true,
       essentialSkills: true,
       idealSkills: true,
+      roleTypes: true,
       owningContact: true,
       candidates: { include: { candidate: true, stageChanges: { orderBy: { createdAt: "desc" } } } },
       documents: { include: { versions: true } },

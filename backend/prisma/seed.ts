@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/auth";
 import { seedSkillTree } from "../src/lib/skillTree";
+import { seedRoleTypes } from "../src/lib/roleTypes";
 
 const prisma = new PrismaClient();
 
@@ -19,8 +20,10 @@ async function main() {
   });
 
   await seedSkillTree(prisma);
+  await seedRoleTypes(prisma);
   const d365Fo = await prisma.skill.findUniqueOrThrow({ where: { name: "D365 F&O" } });
   const powerBi = await prisma.skill.findUniqueOrThrow({ where: { name: "Power BI" } });
+  const solutionArchitect = await prisma.roleType.findUniqueOrThrow({ where: { name: "Solution Architect" } });
 
   const company = await prisma.company.create({
     data: {
@@ -66,6 +69,7 @@ async function main() {
       gdprConsent: true,
       source: "LINKEDIN",
       skills: { create: [{ skillId: d365Fo.id, isPrimary: true }, { skillId: powerBi.id }] },
+      roleTypes: { connect: [{ id: solutionArchitect.id }] },
     },
   });
 
@@ -82,6 +86,7 @@ async function main() {
       owningContactId: clientContact.id,
       essentialSkills: { connect: [{ id: d365Fo.id }] },
       idealSkills: { connect: [{ id: powerBi.id }] },
+      roleTypes: { connect: [{ id: solutionArchitect.id }] },
     },
   });
 

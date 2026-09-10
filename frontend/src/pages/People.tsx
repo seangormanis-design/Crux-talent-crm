@@ -6,6 +6,7 @@ import CvParsePanel from "../components/CvParsePanel";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 import InlineField from "../components/InlineField";
 import SkillPicker from "../components/SkillPicker";
+import RoleTypePicker from "../components/RoleTypePicker";
 import LinkPersonModal from "../components/LinkPersonModal";
 import { fullName } from "../lib/personName";
 
@@ -629,6 +630,11 @@ export function PersonDetail() {
     load();
   }
 
+  async function saveRoleTypes(roleTypeIds: string[]) {
+    await api.patch(`/api/people/${id}`, { roleTypeIds });
+    load();
+  }
+
   useEffect(load, [id]);
   useEffect(() => {
     api.get<{ id: string; name: string }[]>("/api/companies").then(setCompanies);
@@ -846,6 +852,19 @@ export function PersonDetail() {
                   .join(", ")
               : "—"}
           </p>
+        </section>
+      )}
+
+      {person.personType === "CANDIDATE" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <h2 className="mb-2 font-medium">Role Type</h2>
+          <p className="mb-2 text-xs text-slate-500">
+            Select every role type that applies — a candidate can hold more than one.
+          </p>
+          <RoleTypePicker
+            selectedIds={(person.roleTypes ?? []).map((rt: any) => rt.id)}
+            onSave={saveRoleTypes}
+          />
         </section>
       )}
 
