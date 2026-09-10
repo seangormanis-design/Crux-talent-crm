@@ -162,11 +162,24 @@ const EMPTY_PERSON_FORM = {
   addressPostcode: "",
 };
 
+const INTERACTION_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "PHONE_CALL", label: "Phone call" },
+  { value: "VIDEO_MEETING", label: "Video meeting" },
+  { value: "FACE_TO_FACE", label: "Face to face meeting" },
+  { value: "QUALIFICATION_CALL", label: "Main qualification" },
+  { value: "LINKEDIN_MESSAGE", label: "LinkedIn message" },
+  { value: "EMAIL", label: "Email" },
+  { value: "TEXT", label: "Text" },
+];
+
 export function PersonDetail() {
   const { id } = useParams();
   const [person, setPerson] = useState<any>(null);
   const [note, setNote] = useState("");
   const [interactionType, setInteractionType] = useState("PHONE_CALL");
+  const [interactionJobId, setInteractionJobId] = useState("");
+  const [interactionCompanyId, setInteractionCompanyId] = useState("");
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(EMPTY_PERSON_FORM);
   const [saving, setSaving] = useState(false);
@@ -183,14 +196,26 @@ export function PersonDetail() {
         addressCity: p.addressCity ?? "",
         addressPostcode: p.addressPostcode ?? "",
       });
+      // Default the quick-log company link to whichever company this person
+      // is already associated with, but leave it changeable.
+      setInteractionCompanyId((prev) => prev || p.companyId || p.currentEmployerId || "");
     });
   }
 
   useEffect(load, [id]);
+  useEffect(() => {
+    api.get<{ id: string; name: string }[]>("/api/companies").then(setCompanies);
+  }, []);
 
   async function logInteraction(e: FormEvent) {
     e.preventDefault();
-    await api.post("/api/interactions", { personId: id, type: interactionType, notes: note });
+    await api.post("/api/interactions", {
+      personId: id,
+      type: interactionType,
+      notes: note,
+      jobId: interactionJobId || undefined,
+      companyId: interactionCompanyId || undefined,
+    });
     setNote("");
     load();
   }
@@ -359,19 +384,43 @@ export function PersonDetail() {
       <section>
         <h2 className="mb-2 font-medium">Log an interaction</h2>
         <form onSubmit={logInteraction} className="space-y-2 rounded border bg-white p-3">
-          <select
-            className="rounded border px-2 py-2 text-sm"
-            value={interactionType}
-            onChange={(e) => setInteractionType(e.target.value)}
-          >
-            {["PHONE_CALL", "VIDEO_MEETING", "FACE_TO_FACE", "QUALIFICATION_CALL", "LINKEDIN_MESSAGE", "EMAIL", "TEXT"].map(
-              (t) => (
-                <option key={t} value={t}>
-                  {t.replaceAll("_", " ")}
+          <div className="flex flex-wrap gap-2">
+            <select
+              className="rounded border px-2 py-2 text-sm"
+              value={interactionType}
+              onChange={(e) => setInteractionType(e.target.value)}
+            >
+              {INTERACTION_TYPE_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
                 </option>
-              )
-            )}
-          </select>
+              ))}
+            </select>
+            <select
+              className="rounded border px-2 py-2 text-sm"
+              value={interactionJobId}
+              onChange={(e) => setInteractionJobId(e.target.value)}
+            >
+              <option value="">No linked job</option>
+              {person.jobApplications?.map((jc: any) => (
+                <option key={jc.job.id} value={jc.job.id}>
+                  {jc.job.title}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded border px-2 py-2 text-sm"
+              value={interactionCompanyId}
+              onChange={(e) => setInteractionCompanyId(e.target.value)}
+            >
+              <option value="">No linked company</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <textarea
             className="w-full rounded border px-3 py-2 text-sm"
             placeholder="Notes — press Enter for a new line, click Log to save"

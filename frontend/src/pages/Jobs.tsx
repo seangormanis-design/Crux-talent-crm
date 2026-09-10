@@ -229,6 +229,23 @@ export function JobDetail() {
           ))}
         </ul>
       </section>
+
+      <section>
+        <h2 className="mb-2 font-medium">Interactions linked to this job</h2>
+        <ul className="space-y-1 text-sm">
+          {job.interactions?.map((i: any) => (
+            <li key={i.id} className="rounded border bg-white p-2">
+              <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
+              {i.type.replaceAll("_", " ")} —{" "}
+              <Link to={`/people/${i.person.id}`} className="text-blue-600">
+                {i.person.name}
+              </Link>{" "}
+              — <span className="whitespace-pre-wrap">{i.notes}</span>
+            </li>
+          ))}
+          {!job.interactions?.length && <li className="text-slate-400">None yet</li>}
+        </ul>
+      </section>
     </div>
   );
 }

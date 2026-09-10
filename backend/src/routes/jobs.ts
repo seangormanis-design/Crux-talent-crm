@@ -70,7 +70,7 @@ jobsRouter.get("/:id", async (req, res) => {
       owningContact: true,
       candidates: { include: { candidate: true, stageChanges: { orderBy: { createdAt: "desc" } } } },
       documents: { include: { versions: true } },
-      interactions: { orderBy: { occurredAt: "desc" } },
+      interactions: { orderBy: { occurredAt: "desc" }, include: { person: true } },
       stageChanges: { orderBy: { createdAt: "desc" } },
       placement: true,
       tags: { include: { tag: true } },
