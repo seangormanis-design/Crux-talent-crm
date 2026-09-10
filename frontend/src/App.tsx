@@ -9,6 +9,7 @@ import { JobsList, JobDetail } from "./pages/Jobs";
 import Pipeline from "./pages/Pipeline";
 import Placements from "./pages/Placements";
 import Search from "./pages/Search";
+import Import from "./pages/Import";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/pipeline" element={<Pipeline />} />
           <Route path="/placements" element={<Placements />} />
           <Route path="/search" element={<Search />} />
+          <Route path="/import" element={<Import />} />
         </Route>
       </Routes>
     </AuthProvider>
