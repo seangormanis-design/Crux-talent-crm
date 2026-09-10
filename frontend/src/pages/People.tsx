@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import DuplicateWarningModal from "../components/DuplicateWarningModal";
 
 interface Person {
   id: string;
@@ -31,7 +32,11 @@ export function PeopleList() {
   const [showArchived, setShowArchived] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
   const [newType, setNewType] = useState<"CANDIDATE" | "CLIENT_CONTACT">("CANDIDATE");
+  const [duplicateMatches, setDuplicateMatches] = useState<any[] | null>(null);
   const navigate = useNavigate();
 
   function load(query = q, type = personType, archived = showArchived) {
@@ -44,14 +49,43 @@ export function PeopleList() {
 
   useEffect(() => load(), []);
 
+  function resetCreateForm() {
+    setName("");
+    setEmail("");
+    setPhone("");
+    setLinkedinUrl("");
+    setShowForm(false);
+    setDuplicateMatches(null);
+  }
+
+  async function createPerson(linkedPersonId?: string) {
+    const person = await api.post<Person>("/api/people", {
+      name,
+      personType: newType,
+      email: email || undefined,
+      phone: phone || undefined,
+      linkedinUrl: linkedinUrl || undefined,
+      linkedPersonId,
+    });
+    resetCreateForm();
+    // Straight to the detail page so any remaining details can be filled
+    // in immediately, rather than making the quick-add form longer.
+    navigate(`/people/${person.id}`);
+  }
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    const person = await api.post<Person>("/api/people", { name, personType: newType });
-    setName("");
-    setShowForm(false);
-    // Straight to the detail page so email/phone/address/LinkedIn can be
-    // filled in immediately, rather than making the quick-add form longer.
-    navigate(`/people/${person.id}`);
+    const { matches } = await api.post<{ matches: any[] }>("/api/people/check-duplicates", {
+      name,
+      email: email || undefined,
+      phone: phone || undefined,
+      linkedinUrl: linkedinUrl || undefined,
+    });
+    if (matches.length) {
+      setDuplicateMatches(matches);
+    } else {
+      await createPerson();
+    }
   }
 
   return (
@@ -64,20 +98,58 @@ export function PeopleList() {
       </div>
 
       {showForm && (
-        <form onSubmit={onCreate} className="mb-4 flex gap-2 rounded border bg-white p-3">
-          <select className="rounded border px-2 py-2 text-sm" value={newType} onChange={(e) => setNewType(e.target.value as any)}>
-            <option value="CANDIDATE">Candidate</option>
-            <option value="CLIENT_CONTACT">Client contact</option>
-          </select>
-          <input
-            className="flex-1 rounded border px-3 py-2"
-            placeholder="Full name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
+        <form onSubmit={onCreate} className="mb-4 space-y-2 rounded border bg-white p-3">
+          <div className="flex gap-2">
+            <select className="rounded border px-2 py-2 text-sm" value={newType} onChange={(e) => setNewType(e.target.value as any)}>
+              <option value="CANDIDATE">Candidate</option>
+              <option value="CLIENT_CONTACT">Client contact</option>
+            </select>
+            <input
+              className="flex-1 rounded border px-3 py-2 text-sm"
+              placeholder="Full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="email"
+              className="flex-1 rounded border px-3 py-2 text-sm"
+              placeholder="Email (optional, helps catch duplicates)"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <input
+              className="flex-1 rounded border px-3 py-2 text-sm"
+              placeholder="Phone (optional)"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            <input
+              className="flex-1 rounded border px-3 py-2 text-sm"
+              placeholder="LinkedIn URL (optional)"
+              value={linkedinUrl}
+              onChange={(e) => setLinkedinUrl(e.target.value)}
+            />
+          </div>
           <button className="rounded bg-slate-900 px-3 py-2 text-sm text-white">Create</button>
         </form>
+      )}
+
+      {duplicateMatches && (
+        <DuplicateWarningModal
+          candidate={{ name, email, phone, linkedinUrl }}
+          matches={duplicateMatches}
+          onUseExisting={(personId) => {
+            resetCreateForm();
+            navigate(`/people/${personId}`);
+          }}
+          onLinkNew={(personId) => createPerson(personId)}
+          onCreateAnyway={() => createPerson()}
+          onCancel={() => setDuplicateMatches(null)}
+        />
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

@@ -2,8 +2,28 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { nullableDate, optionalEmail, optionalString, optionalUrl } from "../lib/zodHelpers";
+import { findPersonDuplicates } from "../lib/duplicateDetection";
 
 export const peopleRouter = Router();
+
+const duplicateCheckSchema = z.object({
+  name: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  linkedinUrl: z.string().optional(),
+  excludePersonId: z.string().uuid().optional(),
+});
+
+// Pre-flight check the frontend calls before confirming a new Person —
+// manual create and CSV import both go through this same matching logic.
+peopleRouter.post("/check-duplicates", async (req, res) => {
+  const parsed = duplicateCheckSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { excludePersonId, ...candidate } = parsed.data;
+  const matches = await findPersonDuplicates(prisma, candidate, excludePersonId);
+  res.json({ matches });
+});
 
 const personSchema = z.object({
   personType: z.enum(["CANDIDATE", "CLIENT_CONTACT"]),
