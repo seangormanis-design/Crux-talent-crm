@@ -31,7 +31,8 @@ cvRouter.post("/parse", upload.single("file"), async (req, res) => {
 
   res.json({
     extracted: {
-      name: extracted.name,
+      firstName: extracted.firstName,
+      surname: extracted.surname,
       email: extracted.email,
       phone: extracted.phone,
       currentTitle: extracted.currentTitle,

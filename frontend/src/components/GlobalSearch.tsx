@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import { fullName } from "../lib/personName";
 
 interface Person {
   id: string;
-  name: string;
+  firstName: string;
+  surname?: string;
   personType: "CANDIDATE" | "CLIENT_CONTACT";
   currentTitle?: string;
   jobTitle?: string;
@@ -93,7 +95,7 @@ export default function GlobalSearch() {
                 items={results.people.map((p) => ({
                   key: p.id,
                   to: `/people/${p.id}`,
-                  primary: p.name,
+                  primary: fullName(p),
                   secondary: p.currentTitle ?? p.jobTitle,
                 }))}
                 onSelect={(to) => {

@@ -6,12 +6,15 @@ import CvParsePanel from "../components/CvParsePanel";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 import InlineField from "../components/InlineField";
 import SkillPicker from "../components/SkillPicker";
+import { fullName } from "../lib/personName";
 
 interface Person {
   id: string;
   personType: "CANDIDATE" | "CLIENT_CONTACT";
-  name: string;
-  email?: string;
+  firstName: string;
+  surname?: string;
+  workEmail?: string;
+  personalEmail?: string;
   phone?: string;
   linkedinUrl?: string;
   location?: string;
@@ -48,7 +51,8 @@ const COLUMNS: ColumnDef[] = [
   { key: "type", label: "Type", defaultVisible: true },
   { key: "title", label: "Title", defaultVisible: true },
   { key: "employer", label: "Employer", defaultVisible: true },
-  { key: "email", label: "Email", defaultVisible: true },
+  { key: "workEmail", label: "Work email", defaultVisible: true },
+  { key: "personalEmail", label: "Personal email", defaultVisible: false },
   { key: "phone", label: "Phone", defaultVisible: false },
   { key: "linkedin", label: "LinkedIn", defaultVisible: false },
   { key: "location", label: "Location", defaultVisible: false },
@@ -66,8 +70,10 @@ function cellValue(p: Person, key: string): string {
       return p.currentTitle ?? p.jobTitle ?? "—";
     case "employer":
       return employerOf(p);
-    case "email":
-      return p.email ?? "—";
+    case "workEmail":
+      return p.workEmail ?? "—";
+    case "personalEmail":
+      return p.personalEmail ?? "—";
     case "phone":
       return p.phone ?? "—";
     case "linkedin":
@@ -98,7 +104,7 @@ function cellValue(p: Person, key: string): string {
 // Raw comparable value for sorting — dates/text lowercased so sort order
 // matches what's actually displayed, not incidental casing.
 function sortValue(p: Person, key: string): string {
-  if (key === "name") return p.name.toLowerCase();
+  if (key === "name") return fullName(p).toLowerCase();
   if (key === "lastNote") return p.interactions?.[0]?.occurredAt ?? "";
   if (key === "dateAdded") return p.createdAt ?? "";
   if (key === "stage") return p.jobApplications?.[0]?.stage ?? "";
@@ -149,8 +155,10 @@ export function PeopleList() {
   const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [surname, setSurname] = useState("");
+  const [workEmail, setWorkEmail] = useState("");
+  const [personalEmail, setPersonalEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [newType, setNewType] = useState<"CANDIDATE" | "CLIENT_CONTACT">("CANDIDATE");
@@ -224,8 +232,10 @@ export function PeopleList() {
   }
 
   function resetCreateForm() {
-    setName("");
-    setEmail("");
+    setFirstName("");
+    setSurname("");
+    setWorkEmail("");
+    setPersonalEmail("");
     setPhone("");
     setLinkedinUrl("");
     setShowForm(false);
@@ -234,9 +244,11 @@ export function PeopleList() {
 
   async function createPerson(linkedPersonId?: string) {
     const person = await api.post<Person>("/api/people", {
-      name,
+      firstName,
+      surname: surname || undefined,
       personType: newType,
-      email: email || undefined,
+      workEmail: workEmail || undefined,
+      personalEmail: personalEmail || undefined,
       phone: phone || undefined,
       linkedinUrl: linkedinUrl || undefined,
       linkedPersonId,
@@ -250,8 +262,10 @@ export function PeopleList() {
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     const { matches } = await api.post<{ matches: any[] }>("/api/people/check-duplicates", {
-      name,
-      email: email || undefined,
+      firstName,
+      surname: surname || undefined,
+      workEmail: workEmail || undefined,
+      personalEmail: personalEmail || undefined,
       phone: phone || undefined,
       linkedinUrl: linkedinUrl || undefined,
     });
@@ -285,20 +299,33 @@ export function PeopleList() {
             </select>
             <input
               className="flex-1 rounded border px-3 py-2 text-sm"
-              placeholder="Full name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              placeholder="First name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
               required
               autoFocus
+            />
+            <input
+              className="flex-1 rounded border px-3 py-2 text-sm"
+              placeholder="Surname"
+              value={surname}
+              onChange={(e) => setSurname(e.target.value)}
             />
           </div>
           <div className="flex flex-wrap gap-2">
             <input
               type="email"
               className="flex-1 rounded border px-3 py-2 text-sm"
-              placeholder="Email (optional, helps catch duplicates)"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Work email (optional, helps catch duplicates)"
+              value={workEmail}
+              onChange={(e) => setWorkEmail(e.target.value)}
+            />
+            <input
+              type="email"
+              className="flex-1 rounded border px-3 py-2 text-sm"
+              placeholder="Personal email (optional)"
+              value={personalEmail}
+              onChange={(e) => setPersonalEmail(e.target.value)}
             />
             <input
               className="flex-1 rounded border px-3 py-2 text-sm"
@@ -319,7 +346,7 @@ export function PeopleList() {
 
       {duplicateMatches && (
         <DuplicateWarningModal
-          candidate={{ name, email, phone, linkedinUrl }}
+          candidate={{ firstName, surname, workEmail, personalEmail, phone, linkedinUrl }}
           matches={duplicateMatches}
           onUseExisting={(personId) => {
             resetCreateForm();
@@ -452,7 +479,7 @@ export function PeopleList() {
               <tr key={p.id} className={`border-t ${p.archivedAt ? "opacity-50" : ""}`}>
                 <td className="whitespace-nowrap px-3 py-2">
                   <Link to={`/people/${p.id}`} className="text-blue-600">
-                    {p.name}
+                    {fullName(p)}
                   </Link>
                   {p.archivedAt && (
                     <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Archived</span>
@@ -568,14 +595,23 @@ export function PersonDetail() {
 
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <InlineField
-            value={person.name}
-            placeholder="Name"
-            required
-            onSave={(v) => saveField("name", v)}
-            displayClassName="text-xl font-semibold -ml-2"
-            inputClassName="text-xl font-semibold"
-          />
+          <div className="flex items-center gap-1">
+            <InlineField
+              value={person.firstName}
+              placeholder="First name"
+              required
+              onSave={(v) => saveField("firstName", v)}
+              displayClassName="text-xl font-semibold -ml-2"
+              inputClassName="text-xl font-semibold"
+            />
+            <InlineField
+              value={person.surname ?? ""}
+              placeholder="Surname"
+              onSave={(v) => saveField("surname", v)}
+              displayClassName="text-xl font-semibold"
+              inputClassName="text-xl font-semibold"
+            />
+          </div>
           <p className="ml-2 text-sm text-slate-500">
             {person.personType === "CANDIDATE" ? person.currentTitle : person.jobTitle}
           </p>
@@ -589,13 +625,22 @@ export function PersonDetail() {
       <div className="space-y-6">
         <section className="rounded border bg-white p-4 text-sm">
           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-            <DetailRow label="Email">
+            <DetailRow label="Work email">
               <InlineField
-                value={person.email ?? ""}
-                placeholder="Add email"
+                value={person.workEmail ?? ""}
+                placeholder="Add work email"
                 type="email"
-                href={person.email ? `mailto:${person.email}` : undefined}
-                onSave={(v) => saveField("email", v)}
+                href={person.workEmail ? `mailto:${person.workEmail}` : undefined}
+                onSave={(v) => saveField("workEmail", v)}
+              />
+            </DetailRow>
+            <DetailRow label="Personal email">
+              <InlineField
+                value={person.personalEmail ?? ""}
+                placeholder="Add personal email"
+                type="email"
+                href={person.personalEmail ? `mailto:${person.personalEmail}` : undefined}
+                onSave={(v) => saveField("personalEmail", v)}
               />
             </DetailRow>
             <DetailRow label="Phone">

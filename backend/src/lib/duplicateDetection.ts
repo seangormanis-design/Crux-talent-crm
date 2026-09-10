@@ -1,8 +1,10 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 
 export interface DuplicateCandidate {
-  name?: string;
-  email?: string;
+  firstName?: string;
+  surname?: string;
+  workEmail?: string;
+  personalEmail?: string;
   phone?: string;
   linkedinUrl?: string;
 }
@@ -17,22 +19,37 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
+function fullName(p: { firstName?: string | null; surname?: string | null }): string {
+  return [p.firstName, p.surname].filter(Boolean).join(" ").trim();
+}
+
 // Shared by manual person creation and CSV import, per the spec's
 // requirement that imports go through the same duplicate-detection logic
-// as manual entry. Matches on LinkedIn URL, phone number, email, or an
-// exact (case-insensitive) full-name match — any one of these is enough
-// to surface a candidate match; the caller decides what to do about it.
+// as manual entry. Matches on LinkedIn URL, phone number, either email
+// field against either of the target's email fields, or an exact
+// (case-insensitive) full-name match — any one of these is enough to
+// surface a candidate match; the caller decides what to do about it.
 export async function findPersonDuplicates(
   prisma: PrismaClient,
   candidate: DuplicateCandidate,
   excludePersonId?: string
 ): Promise<DuplicateMatch[]> {
-  const { name, email, phone, linkedinUrl } = candidate;
+  const { firstName, surname, workEmail, personalEmail, phone, linkedinUrl } = candidate;
+  const candidateEmails = [workEmail, personalEmail].map((e) => e?.trim().toLowerCase()).filter(Boolean) as string[];
+  const candidateFullName = fullName({ firstName, surname }).toLowerCase();
 
   const orConditions: Prisma.PersonWhereInput[] = [];
   if (linkedinUrl?.trim()) orConditions.push({ linkedinUrl: { equals: linkedinUrl.trim(), mode: "insensitive" } });
-  if (email?.trim()) orConditions.push({ email: { equals: email.trim(), mode: "insensitive" } });
-  if (name?.trim()) orConditions.push({ name: { equals: name.trim(), mode: "insensitive" } });
+  for (const e of candidateEmails) {
+    orConditions.push({ workEmail: { equals: e, mode: "insensitive" } });
+    orConditions.push({ personalEmail: { equals: e, mode: "insensitive" } });
+  }
+  if (firstName?.trim()) {
+    // Narrow the SQL-level candidate pool by first name (which Postgres can
+    // match natively); the exact full-name-including-surname comparison
+    // happens in application code below, the same way phone matching does.
+    orConditions.push({ firstName: { equals: firstName.trim(), mode: "insensitive" } });
+  }
 
   if (!orConditions.length && !phone?.trim()) return [];
 
@@ -63,10 +80,11 @@ export async function findPersonDuplicates(
     if (linkedinUrl?.trim() && person.linkedinUrl?.toLowerCase() === linkedinUrl.trim().toLowerCase()) {
       matchedOn.push("linkedinUrl");
     }
-    if (email?.trim() && person.email?.toLowerCase() === email.trim().toLowerCase()) {
+    const personEmails = [person.workEmail, person.personalEmail].map((e) => e?.toLowerCase()).filter(Boolean);
+    if (candidateEmails.length && personEmails.some((e) => candidateEmails.includes(e!))) {
       matchedOn.push("email");
     }
-    if (name?.trim() && person.name.toLowerCase() === name.trim().toLowerCase()) {
+    if (candidateFullName && fullName(person).toLowerCase() === candidateFullName) {
       matchedOn.push("name");
     }
     if (matchedOn.length) byId.set(person.id, { person, matchedOn });

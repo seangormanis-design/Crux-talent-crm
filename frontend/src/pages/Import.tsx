@@ -13,7 +13,8 @@ interface TargetField {
 
 const FIELDS_BY_KIND: Record<ImportKind, TargetField[]> = {
   CANDIDATE: [
-    { key: "name", label: "Full name", required: true, aliases: ["name", "full name", "candidate name"] },
+    { key: "firstName", label: "First name", required: true, aliases: ["first name", "firstname", "given name"] },
+    { key: "surname", label: "Surname", aliases: ["surname", "last name", "lastname", "family name"] },
     { key: "email", label: "Email", aliases: ["email", "email address"] },
     { key: "phone", label: "Phone", aliases: ["phone", "mobile", "telephone", "phone number"] },
     { key: "linkedinUrl", label: "LinkedIn URL", aliases: ["linkedin", "linkedin url", "linkedin profile"] },
@@ -22,7 +23,8 @@ const FIELDS_BY_KIND: Record<ImportKind, TargetField[]> = {
     { key: "notes", label: "Notes / motivations", aliases: ["notes", "motivations", "comments"] },
   ],
   CLIENT_CONTACT: [
-    { key: "name", label: "Full name", required: true, aliases: ["name", "full name", "contact name"] },
+    { key: "firstName", label: "First name", required: true, aliases: ["first name", "firstname", "given name"] },
+    { key: "surname", label: "Surname", aliases: ["surname", "last name", "lastname", "family name"] },
     { key: "email", label: "Email", aliases: ["email", "email address"] },
     { key: "phone", label: "Phone", aliases: ["phone", "mobile", "telephone", "phone number"] },
     { key: "linkedinUrl", label: "LinkedIn URL", aliases: ["linkedin", "linkedin url", "linkedin profile"] },
@@ -125,7 +127,7 @@ export default function Import() {
       const body =
         kind === "COMPANY"
           ? { rows: mappedRows().filter((r) => r.name.trim()) }
-          : { personType: kind, rows: mappedRows().filter((r) => r.name.trim()) };
+          : { personType: kind, rows: mappedRows().filter((r) => r.firstName.trim()) };
       const endpoint = kind === "COMPANY" ? "/api/import/companies" : "/api/import/people";
       const res = await api.post(endpoint, body);
       setResult(res);
@@ -282,7 +284,7 @@ export default function Import() {
                 <ul className="space-y-1">
                   {result.duplicates.map((d: any, i: number) => (
                     <li key={i}>
-                      "{d.row.name}" matched{" "}
+                      "{d.row.name ?? [d.row.firstName, d.row.surname].filter(Boolean).join(" ")}" matched{" "}
                       {d.existingPersonId ? (
                         <Link to={`/people/${d.existingPersonId}`} className="text-blue-600">
                           {d.existingPersonName}
@@ -304,7 +306,7 @@ export default function Import() {
                 <ul className="space-y-1">
                   {result.errors.map((e: any, i: number) => (
                     <li key={i}>
-                      "{e.row.name}" — {e.message}
+                      "{e.row.name ?? [e.row.firstName, e.row.surname].filter(Boolean).join(" ")}" — {e.message}
                     </li>
                   ))}
                 </ul>

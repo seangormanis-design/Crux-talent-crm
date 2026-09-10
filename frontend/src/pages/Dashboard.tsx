@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { fullName } from "../lib/personName";
 
 interface StageCount {
   stage: string;
@@ -60,7 +61,7 @@ export default function Dashboard() {
                 to={`/people/${person.id}`}
                 className={isOverdue(person.followUpAt) ? "font-medium text-red-600" : "text-blue-600"}
               >
-                {person.name}
+                {fullName(person)}
               </Link>{" "}
               — {new Date(person.followUpAt).toLocaleDateString()}
               {isOverdue(person.followUpAt) ? " (overdue)" : ""}
@@ -83,7 +84,7 @@ export default function Dashboard() {
         <FeedBlock title="Candidates awaiting response (CV sent)">
           {data.activityFeed.candidatesAwaitingResponse.map((pairing) => (
             <li key={pairing.id}>
-              {pairing.candidate?.name} → {pairing.job?.title} ({pairing.job?.company?.name})
+              {fullName(pairing.candidate ?? {})} → {pairing.job?.title} ({pairing.job?.company?.name})
             </li>
           ))}
         </FeedBlock>
@@ -91,7 +92,7 @@ export default function Dashboard() {
         <FeedBlock title="Documents expiring soon">
           {data.activityFeed.expiringDocuments.map((doc) => (
             <li key={doc.id}>
-              {doc.type.replaceAll("_", " ")} — {doc.person?.name ?? doc.company?.name} — expires{" "}
+              {doc.type.replaceAll("_", " ")} — {doc.person ? fullName(doc.person) : doc.company?.name} — expires{" "}
               {new Date(doc.expiresAt).toLocaleDateString()}
             </li>
           ))}
@@ -100,7 +101,7 @@ export default function Dashboard() {
         <FeedBlock title="Recent interactions">
           {data.activityFeed.recentInteractions.map((interaction) => (
             <li key={interaction.id}>
-              {interaction.type.replaceAll("_", " ")} — {interaction.person?.name} —{" "}
+              {interaction.type.replaceAll("_", " ")} — {interaction.person ? fullName(interaction.person) : ""} —{" "}
               {new Date(interaction.occurredAt).toLocaleString()}
             </li>
           ))}

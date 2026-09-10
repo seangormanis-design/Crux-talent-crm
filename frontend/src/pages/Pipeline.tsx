@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { fullName } from "../lib/personName";
 
 const CANDIDATE_STAGES = ["SOURCED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"];
 
 interface Pairing {
   id: string;
   stage: string;
-  candidate: { id: string; name: string };
+  candidate: { id: string; firstName: string; surname?: string };
   job: { id: string; title: string; company: { name: string } };
 }
 
@@ -38,7 +39,7 @@ export default function Pipeline() {
               {board[stage]?.map((pairing) => (
                 <div key={pairing.id} className="rounded border p-2 text-xs">
                   <Link to={`/people/${pairing.candidate.id}`} className="font-medium text-blue-600">
-                    {pairing.candidate.name}
+                    {fullName(pairing.candidate)}
                   </Link>
                   <p className="text-slate-500">
                     <Link to={`/jobs/${pairing.job.id}`}>{pairing.job.title}</Link> — {pairing.job.company?.name}

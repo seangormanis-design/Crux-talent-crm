@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 import SkillPicker from "../components/SkillPicker";
+import { fullName } from "../lib/personName";
 
 interface Job {
   id: string;
@@ -217,7 +218,7 @@ export function JobDetail() {
             <option value="">Add candidate...</option>
             {candidates.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
+                {fullName(c)}
               </option>
             ))}
           </select>
@@ -227,7 +228,7 @@ export function JobDetail() {
           {job.candidates?.map((jc: any) => (
             <li key={jc.id} className="rounded border bg-white p-2">
               <Link to={`/people/${jc.candidate.id}`} className="text-blue-600">
-                {jc.candidate.name}
+                {fullName(jc.candidate)}
               </Link>{" "}
               — {jc.stage.replaceAll("_", " ")}
             </li>
@@ -254,7 +255,7 @@ export function JobDetail() {
               <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
               {i.type.replaceAll("_", " ")} —{" "}
               <Link to={`/people/${i.person.id}`} className="text-blue-600">
-                {i.person.name}
+                {fullName(i.person)}
               </Link>{" "}
               — <span className="whitespace-pre-wrap">{i.notes}</span>
             </li>

@@ -1,14 +1,20 @@
+import { fullName } from "../lib/personName";
+
 interface CandidateInput {
-  name: string;
-  email?: string;
+  firstName: string;
+  surname?: string;
+  workEmail?: string;
+  personalEmail?: string;
   phone?: string;
   linkedinUrl?: string;
 }
 
 interface MatchedPerson {
   id: string;
-  name: string;
-  email?: string;
+  firstName: string;
+  surname?: string;
+  workEmail?: string;
+  personalEmail?: string;
   phone?: string;
   linkedinUrl?: string;
   personType: "CANDIDATE" | "CLIENT_CONTACT";
@@ -39,7 +45,7 @@ export default function DuplicateWarningModal({
       <div className="w-full max-w-2xl rounded-lg bg-white p-5 shadow-xl">
         <h2 className="mb-1 text-lg font-semibold">Possible existing {matches.length > 1 ? "matches" : "match"} found</h2>
         <p className="mb-4 text-sm text-slate-500">
-          Before creating "{candidate.name}", check these existing records aren't the same person.
+          Before creating "{fullName(candidate)}", check these existing records aren't the same person.
         </p>
 
         <div className="mb-4 space-y-3">
@@ -50,8 +56,9 @@ export default function DuplicateWarningModal({
               </p>
               <table className="w-full text-sm">
                 <tbody>
-                  <ComparisonRow label="Name" a={candidate.name} b={person.name} />
-                  <ComparisonRow label="Email" a={candidate.email} b={person.email} />
+                  <ComparisonRow label="Name" a={fullName(candidate)} b={fullName(person)} />
+                  <ComparisonRow label="Work email" a={candidate.workEmail} b={person.workEmail} />
+                  <ComparisonRow label="Personal email" a={candidate.personalEmail} b={person.personalEmail} />
                   <ComparisonRow label="Phone" a={candidate.phone} b={person.phone} />
                   <ComparisonRow label="LinkedIn" a={candidate.linkedinUrl} b={person.linkedinUrl} />
                   <ComparisonRow label="Type" a="(new record)" b={person.personType === "CANDIDATE" ? "Candidate" : "Client contact"} />

@@ -110,8 +110,10 @@ model Person {
   id         String     @id @default(uuid())
   personType PersonType
 
-  name        String
-  email       String?
+  firstName   String
+  surname     String?
+  workEmail     String?
+  personalEmail String?
   phone       String?
   linkedinUrl String?
   addressStreet   String?

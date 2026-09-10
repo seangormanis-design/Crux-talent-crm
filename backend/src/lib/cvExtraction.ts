@@ -4,7 +4,8 @@ import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 
 export interface ExtractedCvFields {
-  name?: string;
+  firstName?: string;
+  surname?: string;
   email?: string;
   phone?: string;
   currentTitle?: string;
@@ -35,7 +36,7 @@ export async function extractTextFromCv(buffer: Buffer, mimeType: string, fileNa
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 const PHONE_RE = /(\+?\d[\d\s().-]{8,}\d)/;
 
-function guessName(lines: string[]): string | undefined {
+function guessName(lines: string[]): { firstName?: string; surname?: string } {
   // A CV's name is almost always the very first non-empty line, and is
   // short, has no digits, and isn't an email/URL. Best-effort only — the
   // whole point of this feature is a human reviews it before saving.
@@ -43,10 +44,11 @@ function guessName(lines: string[]): string | undefined {
     const trimmed = line.trim();
     if (!trimmed || trimmed.length > 60) continue;
     if (EMAIL_RE.test(trimmed) || /\d/.test(trimmed) || trimmed.includes("http")) continue;
-    if (trimmed.split(/\s+/).length > 5) continue;
-    return trimmed;
+    const words = trimmed.split(/\s+/);
+    if (words.length > 5) continue;
+    return { firstName: words[0], surname: words.slice(1).join(" ") || undefined };
   }
-  return undefined;
+  return {};
 }
 
 function guessTitleAndEmployer(text: string): { title?: string; employer?: string } {
@@ -80,7 +82,7 @@ export function extractCvFields(text: string, knownSkillNames: string[]): Extrac
   const { title, employer } = guessTitleAndEmployer(text);
 
   return {
-    name: guessName(lines),
+    ...guessName(lines),
     email,
     phone,
     currentTitle: title,

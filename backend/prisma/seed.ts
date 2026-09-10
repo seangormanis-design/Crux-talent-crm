@@ -38,8 +38,9 @@ async function main() {
   const clientContact = await prisma.person.create({
     data: {
       personType: "CLIENT_CONTACT",
-      name: "Jordan Blake",
-      email: "jordan.blake@northwind-example.com",
+      firstName: "Jordan",
+      surname: "Blake",
+      workEmail: "jordan.blake@northwind-example.com",
       companyId: company.id,
       jobTitle: "Delivery Director",
       decisionRole: "DELIVERY_DIRECTOR",
@@ -51,8 +52,9 @@ async function main() {
   const candidate = await prisma.person.create({
     data: {
       personType: "CANDIDATE",
-      name: "Alex Rivera",
-      email: "alex.rivera@example.com",
+      firstName: "Alex",
+      surname: "Rivera",
+      workEmail: "alex.rivera@example.com",
       currentTitle: "D365 F&O Solution Architect",
       seniority: "Senior",
       dayRate: 650,

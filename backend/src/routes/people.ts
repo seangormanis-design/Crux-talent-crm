@@ -8,8 +8,10 @@ import { resolveCompanyIdByName } from "../lib/companyResolution";
 export const peopleRouter = Router();
 
 const duplicateCheckSchema = z.object({
-  name: z.string().optional(),
-  email: z.string().optional(),
+  firstName: z.string().optional(),
+  surname: z.string().optional(),
+  workEmail: z.string().optional(),
+  personalEmail: z.string().optional(),
   phone: z.string().optional(),
   linkedinUrl: z.string().optional(),
   excludePersonId: z.string().uuid().optional(),
@@ -28,8 +30,10 @@ peopleRouter.post("/check-duplicates", async (req, res) => {
 
 const personSchema = z.object({
   personType: z.enum(["CANDIDATE", "CLIENT_CONTACT"]),
-  name: z.string().min(1),
-  email: optionalEmail,
+  firstName: z.string().min(1),
+  surname: optionalString,
+  workEmail: optionalEmail,
+  personalEmail: optionalEmail,
   phone: optionalString,
   linkedinUrl: optionalUrl,
   addressStreet: optionalString,
@@ -100,8 +104,10 @@ peopleRouter.get("/", async (req, res) => {
         q
           ? {
               OR: [
-                { name: { contains: String(q), mode: "insensitive" } },
-                { email: { contains: String(q), mode: "insensitive" } },
+                { firstName: { contains: String(q), mode: "insensitive" } },
+                { surname: { contains: String(q), mode: "insensitive" } },
+                { workEmail: { contains: String(q), mode: "insensitive" } },
+                { personalEmail: { contains: String(q), mode: "insensitive" } },
                 { motivationsText: { contains: String(q), mode: "insensitive" } },
                 { company: { name: { contains: String(q), mode: "insensitive" } } },
                 { currentEmployer: { name: { contains: String(q), mode: "insensitive" } } },
@@ -123,7 +129,7 @@ peopleRouter.get("/", async (req, res) => {
       // candidate touched most recently, not every application they've ever had.
       jobApplications: { orderBy: { updatedAt: "desc" }, take: 1, include: { job: true } },
     },
-    orderBy: { name: "asc" },
+    orderBy: [{ firstName: "asc" }, { surname: "asc" }],
   });
 
   res.json(people);
@@ -260,8 +266,10 @@ peopleRouter.post("/:id/anonymize", async (req, res) => {
   const person = await prisma.person.update({
     where: { id: req.params.id },
     data: {
-      name: "Anonymized",
-      email: null,
+      firstName: "Anonymized",
+      surname: null,
+      workEmail: null,
+      personalEmail: null,
       phone: null,
       motivationsText: null,
       relationshipNotes: null,

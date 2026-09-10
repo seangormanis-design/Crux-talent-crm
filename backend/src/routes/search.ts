@@ -20,8 +20,10 @@ searchRouter.get("/", async (req, res) => {
         deletedAt: null,
         archivedAt: null,
         OR: [
-          { name: contains },
-          { email: contains },
+          { firstName: contains },
+          { surname: contains },
+          { workEmail: contains },
+          { personalEmail: contains },
           { phone: contains },
           { motivationsText: contains },
           { relationshipNotes: contains },
@@ -41,7 +43,7 @@ searchRouter.get("/", async (req, res) => {
         OR: [
           { name: contains },
           { notes: contains },
-          { contacts: { some: { name: contains } } },
+          { contacts: { some: { OR: [{ firstName: contains }, { surname: contains }] } } },
           { interactions: { some: { notes: contains } } },
         ],
       },

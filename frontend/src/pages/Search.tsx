@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
+import { fullName } from "../lib/personName";
 
 interface Results {
   people: any[];
@@ -37,7 +38,7 @@ export default function Search() {
             {results.people.map((p) => (
               <li key={p.id}>
                 <Link to={`/people/${p.id}`} className="text-blue-600">
-                  {p.name}
+                  {fullName(p)}
                 </Link>
                 <span className="text-slate-400">
                   {" "}

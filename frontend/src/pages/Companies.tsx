@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import InlineField from "../components/InlineField";
+import { fullName } from "../lib/personName";
 
 interface Company {
   id: string;
@@ -225,7 +226,7 @@ export function CompanyDetail() {
           {company.contacts?.map((p: any) => (
             <li key={p.id}>
               <Link to={`/people/${p.id}`} className="text-blue-600">
-                {p.name}
+                {fullName(p)}
               </Link>{" "}
               — {p.jobTitle}
             </li>

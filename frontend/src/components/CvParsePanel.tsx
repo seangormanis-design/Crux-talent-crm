@@ -7,7 +7,8 @@ interface SkillRef {
 }
 
 interface ExtractedFields {
-  name?: string;
+  firstName?: string;
+  surname?: string;
   email?: string;
   phone?: string;
   currentTitle?: string;
@@ -27,7 +28,14 @@ export default function CvParsePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [extracted, setExtracted] = useState<ExtractedFields | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", currentTitle: "", currentEmployerName: "" });
+  const [form, setForm] = useState({
+    firstName: "",
+    surname: "",
+    email: "",
+    phone: "",
+    currentTitle: "",
+    currentEmployerName: "",
+  });
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [allSkillOptions, setAllSkillOptions] = useState<SkillRef[]>([]);
 
@@ -40,7 +48,8 @@ export default function CvParsePanel({
       const { extracted: fields } = await api.post<{ extracted: ExtractedFields }>("/api/cv/parse", formData);
       setExtracted(fields);
       setForm({
-        name: fields.name ?? "",
+        firstName: fields.firstName ?? "",
+        surname: fields.surname ?? "",
         email: fields.email ?? "",
         phone: fields.phone ?? "",
         currentTitle: fields.currentTitle ?? "",
@@ -73,8 +82,9 @@ export default function CvParsePanel({
     setError(null);
     try {
       await api.patch(`/api/people/${personId}`, {
-        name: form.name || undefined,
-        email: form.email || undefined,
+        firstName: form.firstName || undefined,
+        surname: form.surname || undefined,
+        workEmail: form.email || undefined,
         phone: form.phone || undefined,
         currentTitle: form.currentTitle || undefined,
         currentEmployerName: form.currentEmployerName || undefined,
@@ -115,7 +125,8 @@ export default function CvParsePanel({
             Extracted from the CV — review and correct anything before saving to this candidate's record.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <ReviewField label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
+            <ReviewField label="First name" value={form.firstName} onChange={(v) => setForm({ ...form, firstName: v })} />
+            <ReviewField label="Surname" value={form.surname} onChange={(v) => setForm({ ...form, surname: v })} />
             <ReviewField label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
             <ReviewField label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
             <ReviewField

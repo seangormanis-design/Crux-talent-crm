@@ -36,7 +36,8 @@ importRouter.post("/parse", upload.single("file"), (req, res) => {
 });
 
 const personRowSchema = z.object({
-  name: z.string().min(1),
+  firstName: z.string().min(1),
+  surname: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
   linkedinUrl: z.string().optional(),
@@ -66,8 +67,9 @@ importRouter.post("/people", async (req, res) => {
   for (const row of rows) {
     try {
       const matches = await findPersonDuplicates(prisma, {
-        name: row.name,
-        email: row.email,
+        firstName: row.firstName,
+        surname: row.surname,
+        workEmail: row.email,
         phone: row.phone,
         linkedinUrl: row.linkedinUrl,
       });
@@ -78,7 +80,7 @@ importRouter.post("/people", async (req, res) => {
           row,
           matchedOn: top.matchedOn,
           existingPersonId: top.person.id,
-          existingPersonName: top.person.name,
+          existingPersonName: [top.person.firstName, top.person.surname].filter(Boolean).join(" "),
         });
         continue;
       }
@@ -88,8 +90,9 @@ importRouter.post("/people", async (req, res) => {
       const person = await prisma.person.create({
         data: {
           personType,
-          name: row.name,
-          email: row.email || undefined,
+          firstName: row.firstName,
+          surname: row.surname || undefined,
+          workEmail: row.email || undefined,
           phone: row.phone || undefined,
           linkedinUrl: row.linkedinUrl || undefined,
           ...(personType === "CANDIDATE"
