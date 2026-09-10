@@ -16,6 +16,7 @@ import { tagsRouter } from "./routes/tags";
 import { searchRouter } from "./routes/search";
 import { dashboardRouter } from "./routes/dashboard";
 import { importRouter } from "./routes/import";
+import { cvRouter } from "./routes/cv";
 import { requireAuth } from "./middleware/requireAuth";
 
 export function buildApp() {
@@ -42,6 +43,7 @@ export function buildApp() {
   app.use("/api/search", requireAuth, searchRouter);
   app.use("/api/dashboard", requireAuth, dashboardRouter);
   app.use("/api/import", requireAuth, importRouter);
+  app.use("/api/cv", requireAuth, cvRouter);
 
   if (process.env.STORAGE_DRIVER !== "s3") {
     app.use("/files", requireAuth, express.static(path.resolve(process.env.STORAGE_LOCAL_PATH ?? "./storage")));

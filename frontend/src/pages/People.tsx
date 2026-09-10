@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import DuplicateWarningModal from "../components/DuplicateWarningModal";
+import CvParsePanel from "../components/CvParsePanel";
 
 interface Person {
   id: string;
@@ -503,6 +504,14 @@ export function PersonDetail() {
             {person.skills?.map((s: any) => s.skill.name).join(", ") || "—"}
           </p>
         </section>
+      )}
+
+      {person.personType === "CANDIDATE" && (
+        <CvParsePanel
+          personId={person.id}
+          existingSkills={person.skills?.map((s: any) => s.skill) ?? []}
+          onSaved={load}
+        />
       )}
 
       <section>

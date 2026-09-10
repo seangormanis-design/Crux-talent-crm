@@ -4,6 +4,7 @@ import { parse } from "csv-parse/sync";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { findPersonDuplicates } from "../lib/duplicateDetection";
+import { resolveCompanyIdByName } from "../lib/companyResolution";
 
 export const importRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -33,19 +34,6 @@ importRouter.post("/parse", upload.single("file"), (req, res) => {
 
   res.json({ headers, rows });
 });
-
-async function resolveCompanyIdByName(name: string | undefined): Promise<string | undefined> {
-  const trimmed = name?.trim();
-  if (!trimmed) return undefined;
-
-  const existing = await prisma.company.findFirst({
-    where: { name: { equals: trimmed, mode: "insensitive" } },
-  });
-  if (existing) return existing.id;
-
-  const created = await prisma.company.create({ data: { name: trimmed } });
-  return created.id;
-}
 
 const personRowSchema = z.object({
   name: z.string().min(1),
@@ -95,7 +83,7 @@ importRouter.post("/people", async (req, res) => {
         continue;
       }
 
-      const companyId = await resolveCompanyIdByName(row.companyName);
+      const companyId = await resolveCompanyIdByName(prisma, row.companyName);
 
       const person = await prisma.person.create({
         data: {

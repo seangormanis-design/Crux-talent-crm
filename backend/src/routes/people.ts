@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { nullableDate, optionalEmail, optionalString, optionalUrl } from "../lib/zodHelpers";
 import { findPersonDuplicates } from "../lib/duplicateDetection";
+import { resolveCompanyIdByName } from "../lib/companyResolution";
 
 export const peopleRouter = Router();
 
@@ -37,6 +38,10 @@ const personSchema = z.object({
 
   // Candidate fields
   currentEmployerId: z.string().uuid().optional(),
+  // Free-text alternative to currentEmployerId — e.g. from CV parsing,
+  // where we only have a company name, not an existing record's ID.
+  // Resolved server-side to an existing Company or a newly created one.
+  currentEmployerName: optionalString,
   currentTitle: z.string().optional(),
   seniority: z.string().optional(),
   dayRate: z.number().optional(),
@@ -68,10 +73,15 @@ const personSchema = z.object({
   linkedPersonId: z.string().uuid().nullable().optional(),
 });
 
-function toPrismaData(input: z.infer<typeof personSchema>) {
-  const { skillIds, ...rest } = input;
+async function toPrismaData(input: z.infer<typeof personSchema>) {
+  const { skillIds, currentEmployerName, ...rest } = input;
+  const resolvedEmployerId = currentEmployerName
+    ? await resolveCompanyIdByName(prisma, currentEmployerName)
+    : undefined;
+
   return {
     ...rest,
+    ...(resolvedEmployerId ? { currentEmployerId: resolvedEmployerId } : {}),
     ...(skillIds
       ? { skills: { create: skillIds.map((skillId) => ({ skillId })) } }
       : {}),
@@ -134,7 +144,7 @@ peopleRouter.post("/", async (req, res) => {
   const parsed = personSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const person = await prisma.person.create({ data: toPrismaData(parsed.data) as any });
+  const person = await prisma.person.create({ data: (await toPrismaData(parsed.data)) as any });
   res.status(201).json(person);
 });
 
@@ -142,7 +152,10 @@ peopleRouter.patch("/:id", async (req, res) => {
   const parsed = personSchema.partial().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { skillIds, ...rest } = parsed.data;
+  const { skillIds, currentEmployerName, ...rest } = parsed.data;
+  const resolvedEmployerId = currentEmployerName
+    ? await resolveCompanyIdByName(prisma, currentEmployerName)
+    : undefined;
 
   const person = await prisma.$transaction(async (tx) => {
     if (skillIds) {
@@ -151,7 +164,10 @@ peopleRouter.patch("/:id", async (req, res) => {
         data: skillIds.map((skillId) => ({ personId: req.params.id, skillId })),
       });
     }
-    return tx.person.update({ where: { id: req.params.id }, data: rest });
+    return tx.person.update({
+      where: { id: req.params.id },
+      data: { ...rest, ...(resolvedEmployerId ? { currentEmployerId: resolvedEmployerId } : {}) },
+    });
   });
 
   res.json(person);
