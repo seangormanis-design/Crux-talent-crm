@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
+import GlobalSearch from "./GlobalSearch";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", end: true },
@@ -8,7 +9,6 @@ const NAV_ITEMS = [
   { to: "/jobs", label: "Jobs" },
   { to: "/pipeline", label: "Pipeline" },
   { to: "/placements", label: "Placements" },
-  { to: "/search", label: "Search" },
 ];
 
 export default function Layout() {
@@ -17,25 +17,26 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-6">
-            <span className="text-lg font-semibold">Crux Talent CRM</span>
-            <nav className="flex gap-4 text-sm">
-              {NAV_ITEMS.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    isActive ? "font-semibold text-slate-900" : "text-slate-500 hover:text-slate-900"
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
+        <div className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-3">
+          <span className="shrink-0 text-lg font-semibold">Crux Talent CRM</span>
+          <nav className="flex shrink-0 gap-4 text-sm">
+            {NAV_ITEMS.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  isActive ? "font-semibold text-slate-900" : "text-slate-500 hover:text-slate-900"
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="flex-1">
+            <GlobalSearch />
           </div>
-          <div className="flex items-center gap-3 text-sm text-slate-500">
+          <div className="flex shrink-0 items-center gap-3 text-sm text-slate-500">
             <span>{user?.name}</span>
             <button onClick={() => logout()} className="rounded border px-2 py-1 hover:bg-slate-100">
               Log out

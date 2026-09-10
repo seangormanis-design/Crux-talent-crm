@@ -1,45 +1,53 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 
 interface Results {
   people: any[];
   companies: any[];
   jobs: any[];
-  documents: any[];
-  interactions: any[];
 }
 
 export default function Search() {
-  const [q, setQ] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const q = searchParams.get("q") ?? "";
   const [results, setResults] = useState<Results | null>(null);
 
-  async function onSearch(query: string) {
-    setQ(query);
-    if (!query) return setResults(null);
-    setResults(await api.get<Results>(`/api/search?q=${encodeURIComponent(query)}`));
-  }
+  useEffect(() => {
+    if (!q.trim()) {
+      setResults(null);
+      return;
+    }
+    api.get<Results>(`/api/search?q=${encodeURIComponent(q)}&limit=50`).then(setResults);
+  }, [q]);
 
   return (
     <div>
       <h1 className="mb-4 text-xl font-semibold">Search</h1>
       <input
         className="mb-6 w-full max-w-md rounded border px-3 py-2 text-sm"
-        placeholder="Search people, companies, jobs, documents, notes..."
+        placeholder="Search people, companies, jobs..."
         value={q}
-        onChange={(e) => onSearch(e.target.value)}
+        onChange={(e) => setSearchParams(e.target.value ? { q: e.target.value } : {})}
       />
 
       {results && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <ResultBlock title="People">
             {results.people.map((p) => (
               <li key={p.id}>
                 <Link to={`/people/${p.id}`} className="text-blue-600">
                   {p.name}
                 </Link>
+                <span className="text-slate-400">
+                  {" "}
+                  — {p.personType === "CANDIDATE" ? "Candidate" : "Client contact"}
+                  {p.company?.name ? ` · ${p.company.name}` : ""}
+                  {p.currentEmployer?.name ? ` · ${p.currentEmployer.name}` : ""}
+                </span>
               </li>
             ))}
+            {!results.people.length && <li className="text-slate-400">No matches</li>}
           </ResultBlock>
           <ResultBlock title="Companies">
             {results.companies.map((c) => (
@@ -49,6 +57,7 @@ export default function Search() {
                 </Link>
               </li>
             ))}
+            {!results.companies.length && <li className="text-slate-400">No matches</li>}
           </ResultBlock>
           <ResultBlock title="Jobs">
             {results.jobs.map((j) => (
@@ -59,13 +68,7 @@ export default function Search() {
                 — {j.company?.name}
               </li>
             ))}
-          </ResultBlock>
-          <ResultBlock title="Interactions">
-            {results.interactions.map((i) => (
-              <li key={i.id}>
-                {i.type.replaceAll("_", " ")} — {i.person?.name} — {i.notes}
-              </li>
-            ))}
+            {!results.jobs.length && <li className="text-slate-400">No matches</li>}
           </ResultBlock>
         </div>
       )}

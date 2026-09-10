@@ -3,44 +3,59 @@ import { prisma } from "../lib/prisma";
 
 export const searchRouter = Router();
 
-// Phase 1 manual search: full-text-ish search across People, Companies, Jobs,
-// Documents and Interaction notes. Phase 2 will layer a scoring engine on top
-// of the same skills/motivations tags rather than replacing this.
+// Global search: People, Companies, and Jobs simultaneously, matching name,
+// email, phone, company name, job title, and notes/interaction text.
+// Results are grouped by type only (not a separate documents/interactions
+// group) — a note match surfaces the Person/Company it belongs to.
 searchRouter.get("/", async (req, res) => {
   const q = String(req.query.q ?? "").trim();
-  if (!q) return res.json({ people: [], companies: [], jobs: [], documents: [], interactions: [] });
+  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  if (!q) return res.json({ people: [], companies: [], jobs: [] });
 
   const contains = { contains: q, mode: "insensitive" as const };
 
-  const [people, companies, jobs, documents, interactions] = await Promise.all([
+  const [people, companies, jobs] = await Promise.all([
     prisma.person.findMany({
       where: {
         deletedAt: null,
         archivedAt: null,
-        OR: [{ name: contains }, { email: contains }, { motivationsText: contains }],
+        OR: [
+          { name: contains },
+          { email: contains },
+          { phone: contains },
+          { motivationsText: contains },
+          { relationshipNotes: contains },
+          { jobTitle: contains },
+          { currentTitle: contains },
+          { company: { name: contains } },
+          { currentEmployer: { name: contains } },
+          { interactions: { some: { notes: contains } } },
+        ],
       },
-      take: 20,
+      include: { company: true, currentEmployer: true },
+      take: limit,
     }),
     prisma.company.findMany({
-      where: { archivedAt: null, OR: [{ name: contains }, { notes: contains }] },
-      take: 20,
+      where: {
+        archivedAt: null,
+        OR: [
+          { name: contains },
+          { notes: contains },
+          { contacts: { some: { name: contains } } },
+          { interactions: { some: { notes: contains } } },
+        ],
+      },
+      take: limit,
     }),
     prisma.job.findMany({
-      where: { archivedAt: null, title: contains },
+      where: {
+        archivedAt: null,
+        OR: [{ title: contains }, { company: { name: contains } }],
+      },
       include: { company: true },
-      take: 20,
-    }),
-    prisma.document.findMany({
-      where: { versions: { some: { fileName: contains } } },
-      include: { versions: true },
-      take: 20,
-    }),
-    prisma.interaction.findMany({
-      where: { notes: contains },
-      include: { person: true },
-      take: 20,
+      take: limit,
     }),
   ]);
 
-  res.json({ people, companies, jobs, documents, interactions });
+  res.json({ people, companies, jobs });
 });
