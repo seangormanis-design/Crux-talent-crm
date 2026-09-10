@@ -40,7 +40,7 @@ $backupFile = Join-Path $BackupDir "crux-crm-backup-$timestamp.sql"
 
 $running = docker ps --filter "name=$ContainerName" --format "{{.Names}}" 2>$null
 if (-not $running) {
-  Write-Error "Container '$ContainerName' is not running — start it with 'docker compose up -d' before backups can run."
+  Write-Error "Container '$ContainerName' is not running - start it with 'docker compose up -d' before backups can run."
   exit 1
 }
 
@@ -58,7 +58,8 @@ if ($dumpExitCode -ne 0 -or -not (Test-Path $backupFile) -or (Get-Item $backupFi
   exit 1
 }
 
-Write-Output "Backup written: $backupFile ($([math]::Round((Get-Item $backupFile).Length / 1KB, 1)) KB)"
+$sizeKb = [math]::Round((Get-Item $backupFile).Length / 1KB, 1)
+Write-Output "Backup written: $backupFile ($sizeKb KB)"
 
 # Retention: keep every 4-hourly backup for the last $RetentionDays days;
 # beyond that, keep only the earliest backup of each day.
