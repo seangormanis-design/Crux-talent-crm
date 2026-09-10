@@ -5,23 +5,56 @@ export interface SkillTreeNode {
   children?: SkillTreeNode[];
 }
 
-// Starter set only — deliberately not exhaustive. Azure and Data & AI are
-// left flat (no children) pending a deliberate breakdown; the tree is meant
-// to grow through the "add new skill" picker as it's actually used, not be
-// hardcoded once here.
+// Not meant to be exhaustive forever — the tree is meant to grow through
+// the "add new skill" picker as it's actually used. This starter set covers
+// the common areas within each Microsoft product/platform category.
 export const SKILL_TREE: SkillTreeNode[] = [
   {
     name: "D365 F&O",
     children: [
-      { name: "Finance", children: [{ name: "General Ledger" }, { name: "Accounts Payable" }] },
-      { name: "SCM" },
+      {
+        name: "Finance",
+        children: [
+          { name: "General Ledger" },
+          { name: "Accounts Payable" },
+          { name: "Accounts Receivable" },
+          { name: "Cash & Bank Management" },
+          { name: "Budgeting" },
+          { name: "Fixed Assets" },
+          { name: "Cost Accounting" },
+          { name: "Tax" },
+        ],
+      },
+      {
+        name: "SCM",
+        children: [
+          { name: "Inventory Management" },
+          { name: "Master Planning" },
+          { name: "Procurement & Sourcing" },
+          { name: "Product Information Management" },
+          { name: "Production Control/Manufacturing" },
+          { name: "Warehouse Management" },
+          { name: "Transportation Management" },
+          { name: "Asset Management" },
+          { name: "Service Management" },
+        ],
+      },
+      { name: "Commerce" },
       { name: "HR" },
+      { name: "Project Operations" },
       { name: "Warehousing" },
     ],
   },
   {
     name: "D365 CE",
-    children: [{ name: "Sales" }, { name: "Customer Service" }, { name: "Field Service" }, { name: "Marketing" }],
+    children: [
+      { name: "Sales" },
+      { name: "Customer Service" },
+      { name: "Field Service" },
+      { name: "Marketing" },
+      { name: "Marketing/Customer Insights" },
+      { name: "Project Operations" },
+    ],
   },
   {
     name: "Business Central",
@@ -36,10 +69,35 @@ export const SKILL_TREE: SkillTreeNode[] = [
   },
   {
     name: "Power Platform",
-    children: [{ name: "Power Apps" }, { name: "Power Automate" }, { name: "Power BI" }, { name: "Copilot Studio" }],
+    children: [
+      { name: "Power Apps" },
+      { name: "Power Automate" },
+      { name: "Power BI" },
+      { name: "Copilot Studio" },
+      { name: "Power Pages" },
+      { name: "Dataverse" },
+    ],
   },
-  { name: "Azure" },
-  { name: "Data & AI" },
+  {
+    name: "Azure",
+    children: [
+      { name: "Azure DevOps" },
+      { name: "Integration (Logic Apps, Service Bus, API Management)" },
+      { name: "Infrastructure (App Service, Functions, Entra ID)" },
+      { name: "Security & Identity" },
+    ],
+  },
+  {
+    name: "Data & AI",
+    children: [
+      { name: "Microsoft Fabric" },
+      { name: "Azure AI Foundry" },
+      { name: "Azure Synapse Analytics" },
+      { name: "Azure SQL/SQL Server" },
+      { name: "Databricks" },
+      { name: "Copilot (M365 Copilot, Copilot for D365)" },
+    ],
+  },
 ];
 
 // Upsert-by-(parentId, name) is what makes this safe to re-run without
