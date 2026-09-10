@@ -1,2 +1,23 @@
 Crux_Talent_Business_Plan_Final.docx
 crux-talent-brand-identity.md.txt
+
+# dependencies
+node_modules/
+frontend/dist/
+backend/dist/
+
+# env
+.env
+.env.local
+
+# runtime data — never commit real backups, uploaded files, or DB dumps
+backups/
+backend/storage/
+
+# logs
+*.log
+npm-debug.log*
+
+# editor/OS
+.DS_Store
+Thumbs.db

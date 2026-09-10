@@ -1,0 +1,22 @@
+{
+  "name": "crux-talent-crm",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "shared"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "build:shared": "npm run build --workspace shared",
+    "build:backend": "npm run build --workspace backend",
+    "build:frontend": "npm run build --workspace frontend",
+    "prisma:migrate": "npm run prisma:migrate --workspace backend",
+    "prisma:generate": "npm run prisma:generate --workspace backend",
+    "seed": "npm run seed --workspace backend",
+    "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js"
+  }
+}

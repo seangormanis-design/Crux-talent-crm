@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: crux-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-crux}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cruxpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-crux_crm}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crux}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: crux-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crux}:${POSTGRES_PASSWORD:-cruxpassword}@postgres:5432/${POSTGRES_DB:-crux_crm}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-env}
+      PORT: 4000
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_PATH: /app/storage
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    volumes:
+      - backend_storage:/app/storage
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: crux-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:4000}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+
+volumes:
+  postgres_data:
+  backend_storage:
