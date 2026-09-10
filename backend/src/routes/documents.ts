@@ -1,5 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
+import mammoth from "mammoth";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { storage } from "../storage";
@@ -119,4 +120,31 @@ documentsRouter.get("/versions/:versionId/download", async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="${version.fileName}"`);
   res.setHeader("Content-Type", version.mimeType ?? "application/octet-stream");
   res.send(buffer);
+});
+
+// Inline preview for a specific version: PDFs are streamed as-is (the
+// browser's native viewer renders them), .docx is converted to HTML on the
+// fly (legacy .doc isn't supported — mammoth only reads the modern format).
+// Anything else responds 415 so the frontend can fall back to a download link.
+documentsRouter.get("/versions/:versionId/preview", async (req, res) => {
+  const version = await prisma.documentVersion.findUnique({ where: { id: req.params.versionId } });
+  if (!version) return res.status(404).json({ error: "Version not found" });
+
+  const isPdf = version.mimeType === "application/pdf";
+  const isDocx = version.mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+  if (!isPdf && !isDocx) {
+    return res.status(415).json({ error: "Preview isn't available for this file type.", unsupported: true });
+  }
+
+  const buffer = await storage.read(version.storageKey);
+
+  if (isPdf) {
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${version.fileName}"`);
+    return res.send(buffer);
+  }
+
+  const { value: html } = await mammoth.convertToHtml({ buffer });
+  res.json({ html });
 });

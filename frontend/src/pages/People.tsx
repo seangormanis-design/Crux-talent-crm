@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import DuplicateWarningModal from "../components/DuplicateWarningModal";
 import CvParsePanel from "../components/CvParsePanel";
+import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 
 interface Person {
   id: string;
@@ -369,6 +370,8 @@ export function PersonDetail() {
         </div>
       </div>
 
+      <div className={person.personType === "CANDIDATE" ? "grid grid-cols-1 gap-6 lg:grid-cols-2" : ""}>
+      <div className="space-y-6">
       {editing ? (
         <form onSubmit={onSave} className="space-y-3 rounded border bg-white p-4">
           <Field label="Name">
@@ -506,14 +509,6 @@ export function PersonDetail() {
         </section>
       )}
 
-      {person.personType === "CANDIDATE" && (
-        <CvParsePanel
-          personId={person.id}
-          existingSkills={person.skills?.map((s: any) => s.skill) ?? []}
-          onSaved={load}
-        />
-      )}
-
       <section>
         <h2 className="mb-2 font-medium">Log an interaction</h2>
         <form onSubmit={logInteraction} className="space-y-2 rounded border bg-white p-3">
@@ -587,6 +582,25 @@ export function PersonDetail() {
           ))}
         </ul>
       </section>
+      </div>
+
+      {person.personType === "CANDIDATE" && (
+        <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+          <DocumentPreviewPanel
+            label="CV"
+            documentType="CANDIDATE_CV"
+            documents={person.documents ?? []}
+            personId={person.id}
+            onChange={load}
+          />
+          <CvParsePanel
+            personId={person.id}
+            existingSkills={person.skills?.map((s: any) => s.skill) ?? []}
+            onSaved={load}
+          />
+        </div>
+      )}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 
 interface Job {
   id: string;
@@ -179,6 +180,8 @@ export function JobDetail() {
         </button>
       </div>
 
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
       <section>
         <h2 className="mb-2 font-medium">Stage</h2>
         <select
@@ -246,6 +249,18 @@ export function JobDetail() {
           {!job.interactions?.length && <li className="text-slate-400">None yet</li>}
         </ul>
       </section>
+      </div>
+
+      <div className="lg:sticky lg:top-6 lg:self-start">
+        <DocumentPreviewPanel
+          label="Job Spec"
+          documentType="JOB_SPEC"
+          documents={job.documents ?? []}
+          jobId={job.id}
+          onChange={load}
+        />
+      </div>
+      </div>
     </div>
   );
 }
