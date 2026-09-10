@@ -161,6 +161,12 @@ export function PeopleList() {
   const [personalEmail, setPersonalEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [addressStreet, setAddressStreet] = useState("");
+  const [addressCity, setAddressCity] = useState("");
+  const [addressPostcode, setAddressPostcode] = useState("");
+  const [seniority, setSeniority] = useState("");
+  const [newLocation, setNewLocation] = useState("");
+  const [newSkillIds, setNewSkillIds] = useState<string[]>([]);
   const [newType, setNewType] = useState<"CANDIDATE" | "CLIENT_CONTACT">("CANDIDATE");
   const [duplicateMatches, setDuplicateMatches] = useState<any[] | null>(null);
   const navigate = useNavigate();
@@ -238,8 +244,18 @@ export function PeopleList() {
     setPersonalEmail("");
     setPhone("");
     setLinkedinUrl("");
+    setAddressStreet("");
+    setAddressCity("");
+    setAddressPostcode("");
+    setSeniority("");
+    setNewLocation("");
+    setNewSkillIds([]);
     setShowForm(false);
     setDuplicateMatches(null);
+  }
+
+  function toggleNewSkill(skillId: string) {
+    setNewSkillIds((prev) => (prev.includes(skillId) ? prev.filter((id) => id !== skillId) : [...prev, skillId]));
   }
 
   async function createPerson(linkedPersonId?: string) {
@@ -251,6 +267,16 @@ export function PeopleList() {
       personalEmail: personalEmail || undefined,
       phone: phone || undefined,
       linkedinUrl: linkedinUrl || undefined,
+      addressStreet: addressStreet || undefined,
+      addressCity: addressCity || undefined,
+      addressPostcode: addressPostcode || undefined,
+      ...(newType === "CANDIDATE"
+        ? {
+            seniority: seniority || undefined,
+            location: newLocation || undefined,
+            skillIds: newSkillIds.length ? newSkillIds : undefined,
+          }
+        : {}),
       linkedPersonId,
     });
     resetCreateForm();
@@ -291,7 +317,7 @@ export function PeopleList() {
       </div>
 
       {showForm && (
-        <form onSubmit={onCreate} className="mb-4 space-y-2 rounded border bg-white p-3">
+        <form onSubmit={onCreate} className="mb-4 space-y-4 rounded border bg-white p-3">
           <div className="flex gap-2">
             <select className="rounded border px-2 py-2 text-sm" value={newType} onChange={(e) => setNewType(e.target.value as any)}>
               <option value="CANDIDATE">Candidate</option>
@@ -312,34 +338,79 @@ export function PeopleList() {
               onChange={(e) => setSurname(e.target.value)}
             />
           </div>
-          <div className="flex flex-wrap gap-2">
-            <input
-              type="email"
-              className="flex-1 rounded border px-3 py-2 text-sm"
-              placeholder="Work email (optional, helps catch duplicates)"
-              value={workEmail}
-              onChange={(e) => setWorkEmail(e.target.value)}
-            />
-            <input
-              type="email"
-              className="flex-1 rounded border px-3 py-2 text-sm"
-              placeholder="Personal email (optional)"
-              value={personalEmail}
-              onChange={(e) => setPersonalEmail(e.target.value)}
-            />
-            <input
-              className="flex-1 rounded border px-3 py-2 text-sm"
-              placeholder="Phone (optional)"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-            <input
-              className="flex-1 rounded border px-3 py-2 text-sm"
-              placeholder="LinkedIn URL (optional)"
-              value={linkedinUrl}
-              onChange={(e) => setLinkedinUrl(e.target.value)}
-            />
+
+          <div>
+            <p className="mb-1.5 text-xs font-medium uppercase text-slate-400">Contact details</p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                type="email"
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="Work email (helps catch duplicates)"
+                value={workEmail}
+                onChange={(e) => setWorkEmail(e.target.value)}
+              />
+              <input
+                type="email"
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="Personal email"
+                value={personalEmail}
+                onChange={(e) => setPersonalEmail(e.target.value)}
+              />
+              <input
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="Phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+              <input
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="LinkedIn URL"
+                value={linkedinUrl}
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+              />
+              <input
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="Street"
+                value={addressStreet}
+                onChange={(e) => setAddressStreet(e.target.value)}
+              />
+              <input
+                className="w-32 rounded border px-3 py-2 text-sm"
+                placeholder="City"
+                value={addressCity}
+                onChange={(e) => setAddressCity(e.target.value)}
+              />
+              <input
+                className="w-28 rounded border px-3 py-2 text-sm"
+                placeholder="Postcode"
+                value={addressPostcode}
+                onChange={(e) => setAddressPostcode(e.target.value)}
+              />
+            </div>
           </div>
+
+          {newType === "CANDIDATE" && (
+            <div>
+              <p className="mb-1.5 text-xs font-medium uppercase text-slate-400">Professional details</p>
+              <div className="mb-2 flex flex-wrap gap-2">
+                <input
+                  className="flex-1 rounded border px-3 py-2 text-sm"
+                  placeholder="Seniority (e.g. Senior, Lead)"
+                  value={seniority}
+                  onChange={(e) => setSeniority(e.target.value)}
+                />
+                <input
+                  className="flex-1 rounded border px-3 py-2 text-sm"
+                  placeholder="Location"
+                  value={newLocation}
+                  onChange={(e) => setNewLocation(e.target.value)}
+                />
+              </div>
+              <p className="mb-1 text-xs text-slate-500">Skills (optional — mark primary/secondary later on their record)</p>
+              <SkillPicker mode="draft" selectedSkillIds={newSkillIds} onToggle={toggleNewSkill} />
+            </div>
+          )}
+
           <button className="rounded bg-slate-900 px-3 py-2 text-sm text-white">Create</button>
         </form>
       )}

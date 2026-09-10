@@ -17,7 +17,8 @@ const MAX_PRIMARY = 5;
 
 type Props =
   | { mode: "person"; personId: string; assigned: PersonAssignment[]; onChange: () => void }
-  | { mode: "job"; jobId: string; essentialSkillIds: string[]; idealSkillIds: string[]; onChange: () => void };
+  | { mode: "job"; jobId: string; essentialSkillIds: string[]; idealSkillIds: string[]; onChange: () => void }
+  | { mode: "draft"; selectedSkillIds: string[]; onToggle: (skillId: string) => void };
 
 // Shared tree-style skill picker for both a Candidate's assigned skills
 // (with a Primary/Secondary flag) and a Job's essential/ideal skills.
@@ -138,6 +139,7 @@ export default function SkillPicker(props: Props) {
   const assignedMap = props.mode === "person" ? new Map(props.assigned.map((a) => [a.skillId, a] as const)) : null;
   const essentialSet = props.mode === "job" ? new Set(props.essentialSkillIds) : null;
   const idealSet = props.mode === "job" ? new Set(props.idealSkillIds) : null;
+  const draftSet = props.mode === "draft" ? new Set(props.selectedSkillIds) : null;
 
   function renderAddForm(parentId: string | null, depth: number) {
     return (
@@ -191,6 +193,15 @@ export default function SkillPicker(props: Props) {
                 disabled={saving}
                 checked={!!assignment}
                 onChange={() => togglePersonSkill(node.id)}
+              />
+              {node.name}
+            </label>
+          ) : props.mode === "draft" ? (
+            <label className="flex items-center gap-1.5 text-sm">
+              <input
+                type="checkbox"
+                checked={draftSet!.has(node.id)}
+                onChange={() => props.onToggle(node.id)}
               />
               {node.name}
             </label>
