@@ -1,5 +1,9 @@
 FROM node:20-alpine
 
+# Alpine ships OpenSSL 3.x by default; Prisma's engine binaries need this
+# installed explicitly or they fail to detect libssl and crash at runtime.
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
 COPY package.json ./

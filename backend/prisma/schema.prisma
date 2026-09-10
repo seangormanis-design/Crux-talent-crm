@@ -57,7 +57,8 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  contacts     Person[]
+  contacts     Person[]      @relation("PersonClientCompany")
+  employeesAt  Person[]      @relation("PersonCurrentEmployer")
   jobs         Job[]
   documents    Document[]
   interactions Interaction[]
@@ -107,7 +108,7 @@ model Person {
 
   // Candidate-specific fields
   currentEmployerId    String?
-  currentEmployer      Company? @relation(fields: [currentEmployerId], references: [id])
+  currentEmployer      Company? @relation("PersonCurrentEmployer", fields: [currentEmployerId], references: [id])
   currentTitle         String?
   seniority            String?
   dayRate              Decimal? @db.Decimal(10, 2)
@@ -120,7 +121,7 @@ model Person {
 
   // Client-contact-specific fields
   companyId       String?
-  company         Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull, map: "person_client_company_fkey")
+  company         Company?      @relation("PersonClientCompany", fields: [companyId], references: [id], onDelete: SetNull)
   jobTitle        String?
   decisionRole    DecisionRole?
   relationshipNotes String?
