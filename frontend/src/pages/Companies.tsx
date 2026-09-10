@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import InlineField from "../components/InlineField";
 
 interface Company {
   id: string;
@@ -126,48 +127,19 @@ export function CompaniesList() {
   );
 }
 
-const EMPTY_FORM = {
-  name: "",
-  website: "",
-  linkedinUrl: "",
-  addressStreet: "",
-  addressCity: "",
-  addressPostcode: "",
-};
-
 export function CompanyDetail() {
   const { id } = useParams();
   const [company, setCompany] = useState<any>(null);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
 
   function load() {
-    api.get(`/api/companies/${id}`).then((c: any) => {
-      setCompany(c);
-      setForm({
-        name: c.name ?? "",
-        website: c.website ?? "",
-        linkedinUrl: c.linkedinUrl ?? "",
-        addressStreet: c.addressStreet ?? "",
-        addressCity: c.addressCity ?? "",
-        addressPostcode: c.addressPostcode ?? "",
-      });
-    });
+    api.get(`/api/companies/${id}`).then(setCompany);
   }
 
   useEffect(load, [id]);
 
-  async function onSave(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await api.patch(`/api/companies/${id}`, form);
-      setEditing(false);
-      load();
-    } finally {
-      setSaving(false);
-    }
+  async function saveField(field: string, value: string) {
+    await api.patch(`/api/companies/${id}`, { [field]: value });
+    load();
   }
 
   async function onToggleArchive() {
@@ -176,8 +148,6 @@ export function CompanyDetail() {
   }
 
   if (!company) return <p>Loading...</p>;
-
-  const hasAddress = company.addressStreet || company.addressCity || company.addressPostcode;
 
   return (
     <div className="space-y-6">
@@ -188,110 +158,64 @@ export function CompanyDetail() {
       )}
 
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">{company.name}</h1>
-          <p className="text-sm text-slate-500">
+        <div className="flex-1">
+          <InlineField
+            value={company.name}
+            placeholder="Company name"
+            required
+            onSave={(v) => saveField("name", v)}
+            displayClassName="text-xl font-semibold -ml-2"
+            inputClassName="text-xl font-semibold"
+          />
+          <p className="ml-2 text-sm text-slate-500">
             {company.companyType?.replaceAll("_", " ")} · {company.relationshipStatus.replaceAll("_", " ")}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setEditing((e) => !e)}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
-          >
-            {editing ? "Cancel" : "Edit details"}
-          </button>
-          <button
-            onClick={onToggleArchive}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
-          >
-            {company.archivedAt ? "Unarchive" : "Archive"}
-          </button>
-        </div>
+        <button onClick={onToggleArchive} className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100">
+          {company.archivedAt ? "Unarchive" : "Archive"}
+        </button>
       </div>
 
-      {editing ? (
-        <form onSubmit={onSave} className="space-y-3 rounded border bg-white p-4">
-          <Field label="Name">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
+      <section className="rounded border bg-white p-4 text-sm">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+          <DetailRow label="Website">
+            <InlineField
+              value={company.website ?? ""}
+              placeholder="Add website"
+              type="url"
+              href={company.website || undefined}
+              onSave={(v) => saveField("website", v)}
             />
-          </Field>
-          <Field label="Website">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              placeholder="https://..."
-              value={form.website}
-              onChange={(e) => setForm({ ...form, website: e.target.value })}
+          </DetailRow>
+          <DetailRow label="LinkedIn">
+            <InlineField
+              value={company.linkedinUrl ?? ""}
+              placeholder="Add LinkedIn company page"
+              href={company.linkedinUrl || undefined}
+              onSave={(v) => saveField("linkedinUrl", v)}
             />
-          </Field>
-          <Field label="LinkedIn company page">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              placeholder="https://www.linkedin.com/company/..."
-              value={form.linkedinUrl}
-              onChange={(e) => setForm({ ...form, linkedinUrl: e.target.value })}
-            />
-          </Field>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Field label="Street">
-              <input
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={form.addressStreet}
-                onChange={(e) => setForm({ ...form, addressStreet: e.target.value })}
+          </DetailRow>
+          <DetailRow label="Address">
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
+              <InlineField
+                value={company.addressStreet ?? ""}
+                placeholder="Street"
+                onSave={(v) => saveField("addressStreet", v)}
               />
-            </Field>
-            <Field label="City">
-              <input
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={form.addressCity}
-                onChange={(e) => setForm({ ...form, addressCity: e.target.value })}
+              <InlineField
+                value={company.addressCity ?? ""}
+                placeholder="City"
+                onSave={(v) => saveField("addressCity", v)}
               />
-            </Field>
-            <Field label="Postcode">
-              <input
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={form.addressPostcode}
-                onChange={(e) => setForm({ ...form, addressPostcode: e.target.value })}
+              <InlineField
+                value={company.addressPostcode ?? ""}
+                placeholder="Postcode"
+                onSave={(v) => saveField("addressPostcode", v)}
               />
-            </Field>
-          </div>
-          <button disabled={saving} className="rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">
-            {saving ? "Saving..." : "Save"}
-          </button>
-        </form>
-      ) : (
-        <section className="rounded border bg-white p-4 text-sm">
-          <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-            <DetailRow label="Website">
-              {company.website ? (
-                <a href={company.website} target="_blank" rel="noreferrer" className="text-blue-600">
-                  {company.website}
-                </a>
-              ) : (
-                "—"
-              )}
-            </DetailRow>
-            <DetailRow label="LinkedIn">
-              {company.linkedinUrl ? (
-                <a href={company.linkedinUrl} target="_blank" rel="noreferrer" className="text-blue-600">
-                  {company.linkedinUrl}
-                </a>
-              ) : (
-                "—"
-              )}
-            </DetailRow>
-            <DetailRow label="Address">
-              {hasAddress
-                ? [company.addressStreet, company.addressCity, company.addressPostcode].filter(Boolean).join(", ")
-                : "—"}
-            </DetailRow>
-          </dl>
-        </section>
-      )}
+            </div>
+          </DetailRow>
+        </dl>
+      </section>
 
       {company.notes && <p className="rounded border bg-white p-3 text-sm">{company.notes}</p>}
 
@@ -335,15 +259,6 @@ export function CompanyDetail() {
         </ul>
       </section>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1 block text-slate-600">{label}</span>
-      {children}
-    </label>
   );
 }
 

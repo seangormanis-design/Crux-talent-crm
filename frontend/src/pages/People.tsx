@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import DuplicateWarningModal from "../components/DuplicateWarningModal";
 import CvParsePanel from "../components/CvParsePanel";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
+import InlineField from "../components/InlineField";
 
 interface Person {
   id: string;
@@ -231,18 +232,6 @@ export function PeopleList() {
   );
 }
 
-const EMPTY_PERSON_FORM = {
-  name: "",
-  email: "",
-  phone: "",
-  linkedinUrl: "",
-  addressStreet: "",
-  addressCity: "",
-  addressPostcode: "",
-  followUpAt: "",
-  followUpNote: "",
-};
-
 function toDateInputValue(iso?: string | null): string {
   return iso ? iso.slice(0, 10) : "";
 }
@@ -272,28 +261,19 @@ export function PersonDetail() {
   const [interactionCompanyId, setInteractionCompanyId] = useState("");
   const [interactionFollowUpAt, setInteractionFollowUpAt] = useState("");
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState(EMPTY_PERSON_FORM);
-  const [saving, setSaving] = useState(false);
 
   function load() {
     api.get(`/api/people/${id}`).then((p: any) => {
       setPerson(p);
-      setForm({
-        name: p.name ?? "",
-        email: p.email ?? "",
-        phone: p.phone ?? "",
-        linkedinUrl: p.linkedinUrl ?? "",
-        addressStreet: p.addressStreet ?? "",
-        addressCity: p.addressCity ?? "",
-        addressPostcode: p.addressPostcode ?? "",
-        followUpAt: toDateInputValue(p.followUpAt),
-        followUpNote: p.followUpNote ?? "",
-      });
       // Default the quick-log company link to whichever company this person
       // is already associated with, but leave it changeable.
       setInteractionCompanyId((prev) => prev || p.companyId || p.currentEmployerId || "");
     });
+  }
+
+  async function saveField(field: string, value: string) {
+    await api.patch(`/api/people/${id}`, { [field]: value });
+    load();
   }
 
   useEffect(load, [id]);
@@ -318,26 +298,12 @@ export function PersonDetail() {
     load();
   }
 
-  async function onSave(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await api.patch(`/api/people/${id}`, form);
-      setEditing(false);
-      load();
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function onToggleArchive() {
     await api.post(`/api/people/${id}/${person.archivedAt ? "unarchive" : "archive"}`);
     load();
   }
 
   if (!person) return <p>Loading...</p>;
-
-  const hasAddress = person.addressStreet || person.addressCity || person.addressPostcode;
 
   return (
     <div className="space-y-6">
@@ -348,150 +314,94 @@ export function PersonDetail() {
       )}
 
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">{person.name}</h1>
-          <p className="text-sm text-slate-500">
+        <div className="flex-1">
+          <InlineField
+            value={person.name}
+            placeholder="Name"
+            required
+            onSave={(v) => saveField("name", v)}
+            displayClassName="text-xl font-semibold -ml-2"
+            inputClassName="text-xl font-semibold"
+          />
+          <p className="ml-2 text-sm text-slate-500">
             {person.personType === "CANDIDATE" ? person.currentTitle : person.jobTitle}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setEditing((e) => !e)}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
-          >
-            {editing ? "Cancel" : "Edit details"}
-          </button>
-          <button
-            onClick={onToggleArchive}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
-          >
-            {person.archivedAt ? "Unarchive" : "Archive"}
-          </button>
-        </div>
+        <button onClick={onToggleArchive} className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100">
+          {person.archivedAt ? "Unarchive" : "Archive"}
+        </button>
       </div>
 
       <div className={person.personType === "CANDIDATE" ? "grid grid-cols-1 gap-6 lg:grid-cols-2" : ""}>
       <div className="space-y-6">
-      {editing ? (
-        <form onSubmit={onSave} className="space-y-3 rounded border bg-white p-4">
-          <Field label="Name">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </Field>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Email">
-              <input
-                type="email"
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </Field>
-            <Field label="Phone">
-              <input
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-            </Field>
-          </div>
-          <Field label="LinkedIn profile">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              placeholder="https://www.linkedin.com/in/..."
-              value={form.linkedinUrl}
-              onChange={(e) => setForm({ ...form, linkedinUrl: e.target.value })}
-            />
-          </Field>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Field label="Street">
-              <input
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={form.addressStreet}
-                onChange={(e) => setForm({ ...form, addressStreet: e.target.value })}
-              />
-            </Field>
-            <Field label="City">
-              <input
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={form.addressCity}
-                onChange={(e) => setForm({ ...form, addressCity: e.target.value })}
-              />
-            </Field>
-            <Field label="Postcode">
-              <input
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={form.addressPostcode}
-                onChange={(e) => setForm({ ...form, addressPostcode: e.target.value })}
-              />
-            </Field>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Follow-up reminder date">
-              <input
-                type="date"
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={form.followUpAt}
-                onChange={(e) => setForm({ ...form, followUpAt: e.target.value })}
-              />
-            </Field>
-            <Field label="Follow-up note">
-              <input
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={form.followUpNote}
-                onChange={(e) => setForm({ ...form, followUpNote: e.target.value })}
-              />
-            </Field>
-          </div>
-          <button disabled={saving} className="rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">
-            {saving ? "Saving..." : "Save"}
-          </button>
-        </form>
-      ) : (
         <section className="rounded border bg-white p-4 text-sm">
           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
             <DetailRow label="Email">
-              {person.email ? (
-                <a href={`mailto:${person.email}`} className="text-blue-600">
-                  {person.email}
-                </a>
-              ) : (
-                "—"
-              )}
+              <InlineField
+                value={person.email ?? ""}
+                placeholder="Add email"
+                type="email"
+                href={person.email ? `mailto:${person.email}` : undefined}
+                onSave={(v) => saveField("email", v)}
+              />
             </DetailRow>
-            <DetailRow label="Phone">{person.phone || "—"}</DetailRow>
+            <DetailRow label="Phone">
+              <InlineField
+                value={person.phone ?? ""}
+                placeholder="Add phone"
+                onSave={(v) => saveField("phone", v)}
+              />
+            </DetailRow>
             <DetailRow label="LinkedIn">
-              {person.linkedinUrl ? (
-                <a href={person.linkedinUrl} target="_blank" rel="noreferrer" className="text-blue-600">
-                  {person.linkedinUrl}
-                </a>
-              ) : (
-                "—"
-              )}
+              <InlineField
+                value={person.linkedinUrl ?? ""}
+                placeholder="Add LinkedIn profile"
+                href={person.linkedinUrl || undefined}
+                onSave={(v) => saveField("linkedinUrl", v)}
+              />
             </DetailRow>
             <DetailRow label="Address">
-              {hasAddress
-                ? [person.addressStreet, person.addressCity, person.addressPostcode].filter(Boolean).join(", ")
-                : "—"}
+              <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
+                <InlineField
+                  value={person.addressStreet ?? ""}
+                  placeholder="Street"
+                  onSave={(v) => saveField("addressStreet", v)}
+                />
+                <InlineField
+                  value={person.addressCity ?? ""}
+                  placeholder="City"
+                  onSave={(v) => saveField("addressCity", v)}
+                />
+                <InlineField
+                  value={person.addressPostcode ?? ""}
+                  placeholder="Postcode"
+                  onSave={(v) => saveField("addressPostcode", v)}
+                />
+              </div>
             </DetailRow>
             <DetailRow label="Follow-up reminder">
-              {person.followUpAt ? (
-                <span className={isOverdue(person.followUpAt) ? "font-medium text-red-600" : ""}>
-                  {new Date(person.followUpAt).toLocaleDateString()}
-                  {person.followUpNote ? ` — ${person.followUpNote}` : ""}
-                  {isOverdue(person.followUpAt) ? " (overdue)" : ""}
-                </span>
-              ) : (
-                "—"
-              )}
+              <div className="flex items-center gap-2">
+                <InlineField
+                  value={toDateInputValue(person.followUpAt)}
+                  displayValue={
+                    person.followUpAt
+                      ? new Date(person.followUpAt).toLocaleDateString() + (isOverdue(person.followUpAt) ? " (overdue)" : "")
+                      : undefined
+                  }
+                  type="date"
+                  placeholder="Set a date"
+                  displayClassName={isOverdue(person.followUpAt ?? "") ? "font-medium text-red-600" : ""}
+                  onSave={(v) => saveField("followUpAt", v)}
+                />
+                <InlineField
+                  value={person.followUpNote ?? ""}
+                  placeholder="Add a note"
+                  onSave={(v) => saveField("followUpNote", v)}
+                />
+              </div>
             </DetailRow>
           </dl>
         </section>
-      )}
 
       {person.personType === "CANDIDATE" && (
         <section className="rounded border bg-white p-3 text-sm">
@@ -602,15 +512,6 @@ export function PersonDetail() {
       )}
       </div>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1 block text-slate-600">{label}</span>
-      {children}
-    </label>
   );
 }
 
