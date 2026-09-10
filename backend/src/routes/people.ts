@@ -75,7 +75,12 @@ peopleRouter.get("/", async (req, res) => {
         skill ? { skills: { some: { skill: { name: String(skill) } } } } : {},
       ],
     },
-    include: { skills: { include: { skill: true } }, company: true, currentEmployer: true },
+    include: {
+      skills: { include: { skill: true } },
+      company: true,
+      currentEmployer: true,
+      interactions: { orderBy: { occurredAt: "desc" }, take: 1 },
+    },
     orderBy: { name: "asc" },
   });
 

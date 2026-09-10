@@ -10,6 +10,18 @@ interface Person {
   currentTitle?: string;
   jobTitle?: string;
   archivedAt?: string | null;
+  company?: { name: string } | null;
+  currentEmployer?: { name: string } | null;
+  interactions?: { occurredAt: string }[];
+}
+
+function employerOf(p: Person): string {
+  return (p.personType === "CANDIDATE" ? p.currentEmployer?.name : p.company?.name) ?? "—";
+}
+
+function lastNoteOf(p: Person): string {
+  const latest = p.interactions?.[0]?.occurredAt;
+  return latest ? new Date(latest).toLocaleDateString() : "—";
 }
 
 export function PeopleList() {
@@ -110,7 +122,9 @@ export function PeopleList() {
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">Type</th>
               <th className="px-3 py-2">Title</th>
+              <th className="px-3 py-2">Employer</th>
               <th className="px-3 py-2">Email</th>
+              <th className="px-3 py-2">Date of last note</th>
             </tr>
           </thead>
           <tbody>
@@ -126,7 +140,9 @@ export function PeopleList() {
                 </td>
                 <td className="px-3 py-2">{p.personType === "CANDIDATE" ? "Candidate" : "Client contact"}</td>
                 <td className="px-3 py-2">{p.currentTitle ?? p.jobTitle ?? "—"}</td>
+                <td className="px-3 py-2">{employerOf(p)}</td>
                 <td className="px-3 py-2">{p.email ?? "—"}</td>
+                <td className="px-3 py-2">{lastNoteOf(p)}</td>
               </tr>
             ))}
           </tbody>
@@ -342,7 +358,7 @@ export function PersonDetail() {
 
       <section>
         <h2 className="mb-2 font-medium">Log an interaction</h2>
-        <form onSubmit={logInteraction} className="flex gap-2 rounded border bg-white p-3">
+        <form onSubmit={logInteraction} className="space-y-2 rounded border bg-white p-3">
           <select
             className="rounded border px-2 py-2 text-sm"
             value={interactionType}
@@ -356,13 +372,16 @@ export function PersonDetail() {
               )
             )}
           </select>
-          <input
-            className="flex-1 rounded border px-3 py-2 text-sm"
-            placeholder="Notes"
+          <textarea
+            className="w-full rounded border px-3 py-2 text-sm"
+            placeholder="Notes — press Enter for a new line, click Log to save"
+            rows={5}
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-          <button className="rounded bg-slate-900 px-3 py-2 text-sm text-white">Log</button>
+          <div className="flex justify-end">
+            <button className="rounded bg-slate-900 px-4 py-2 text-sm text-white">Log</button>
+          </div>
         </form>
       </section>
 
@@ -372,7 +391,7 @@ export function PersonDetail() {
           {person.interactions?.map((i: any) => (
             <li key={i.id} className="rounded border bg-white p-2">
               <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
-              {i.type.replaceAll("_", " ")} — {i.notes}
+              {i.type.replaceAll("_", " ")} — <span className="whitespace-pre-wrap">{i.notes}</span>
             </li>
           ))}
         </ul>

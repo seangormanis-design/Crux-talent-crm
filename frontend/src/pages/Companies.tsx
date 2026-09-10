@@ -323,7 +323,8 @@ export function CompanyDetail() {
         <ul className="space-y-1 text-sm">
           {company.interactions?.map((i: any) => (
             <li key={i.id}>
-              {i.type.replaceAll("_", " ")} — {new Date(i.occurredAt).toLocaleString()} — {i.notes}
+              {i.type.replaceAll("_", " ")} — {new Date(i.occurredAt).toLocaleString()} —{" "}
+              <span className="whitespace-pre-wrap">{i.notes}</span>
             </li>
           ))}
         </ul>
