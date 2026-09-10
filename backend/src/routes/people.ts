@@ -1,14 +1,19 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { optionalEmail, optionalString, optionalUrl } from "../lib/zodHelpers";
 
 export const peopleRouter = Router();
 
 const personSchema = z.object({
   personType: z.enum(["CANDIDATE", "CLIENT_CONTACT"]),
   name: z.string().min(1),
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
+  email: optionalEmail,
+  phone: optionalString,
+  linkedinUrl: optionalUrl,
+  addressStreet: optionalString,
+  addressCity: optionalString,
+  addressPostcode: optionalString,
 
   // Candidate fields
   currentEmployerId: z.string().uuid().optional(),

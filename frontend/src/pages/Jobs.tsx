@@ -120,7 +120,7 @@ export function JobDetail() {
 
   useEffect(() => {
     load();
-    api.get("/api/people?personType=CANDIDATE").then(setCandidates);
+    api.get<any[]>("/api/people?personType=CANDIDATE").then(setCandidates);
   }, [id]);
 
   async function changeStage(stage: string) {

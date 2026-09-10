@@ -1,13 +1,17 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 
 interface Company {
   id: string;
   name: string;
   website?: string;
+  linkedinUrl?: string;
   industry?: string;
   companyType?: string;
+  addressStreet?: string;
+  addressCity?: string;
+  addressPostcode?: string;
   relationshipStatus: string;
   notes?: string;
 }
@@ -17,6 +21,7 @@ export function CompaniesList() {
   const [q, setQ] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
+  const navigate = useNavigate();
 
   function load(query = "") {
     api.get<Company[]>(`/api/companies${query ? `?q=${encodeURIComponent(query)}` : ""}`).then(setCompanies);
@@ -26,10 +31,12 @@ export function CompaniesList() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    await api.post("/api/companies", { name });
+    const company = await api.post<Company>("/api/companies", { name });
     setName("");
     setShowForm(false);
-    load(q);
+    // Straight to the detail page so website/LinkedIn/address can be filled
+    // in immediately, rather than making the quick-add form itself longer.
+    navigate(`/companies/${company.id}`);
   }
 
   return (
@@ -49,6 +56,7 @@ export function CompaniesList() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
+            autoFocus
           />
           <button className="rounded bg-slate-900 px-3 py-2 text-sm text-white">Create</button>
         </form>
@@ -92,24 +100,153 @@ export function CompaniesList() {
   );
 }
 
+const EMPTY_FORM = {
+  name: "",
+  website: "",
+  linkedinUrl: "",
+  addressStreet: "",
+  addressCity: "",
+  addressPostcode: "",
+};
+
 export function CompanyDetail() {
   const { id } = useParams();
   const [company, setCompany] = useState<any>(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    api.get(`/api/companies/${id}`).then(setCompany);
-  }, [id]);
+  function load() {
+    api.get(`/api/companies/${id}`).then((c: any) => {
+      setCompany(c);
+      setForm({
+        name: c.name ?? "",
+        website: c.website ?? "",
+        linkedinUrl: c.linkedinUrl ?? "",
+        addressStreet: c.addressStreet ?? "",
+        addressCity: c.addressCity ?? "",
+        addressPostcode: c.addressPostcode ?? "",
+      });
+    });
+  }
+
+  useEffect(load, [id]);
+
+  async function onSave(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.patch(`/api/companies/${id}`, form);
+      setEditing(false);
+      load();
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (!company) return <p>Loading...</p>;
 
+  const hasAddress = company.addressStreet || company.addressCity || company.addressPostcode;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">{company.name}</h1>
-        <p className="text-sm text-slate-500">
-          {company.companyType?.replaceAll("_", " ")} · {company.relationshipStatus.replaceAll("_", " ")}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">{company.name}</h1>
+          <p className="text-sm text-slate-500">
+            {company.companyType?.replaceAll("_", " ")} · {company.relationshipStatus.replaceAll("_", " ")}
+          </p>
+        </div>
+        <button
+          onClick={() => setEditing((e) => !e)}
+          className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+        >
+          {editing ? "Cancel" : "Edit details"}
+        </button>
       </div>
+
+      {editing ? (
+        <form onSubmit={onSave} className="space-y-3 rounded border bg-white p-4">
+          <Field label="Name">
+            <input
+              className="w-full rounded border px-3 py-2 text-sm"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
+          </Field>
+          <Field label="Website">
+            <input
+              className="w-full rounded border px-3 py-2 text-sm"
+              placeholder="https://..."
+              value={form.website}
+              onChange={(e) => setForm({ ...form, website: e.target.value })}
+            />
+          </Field>
+          <Field label="LinkedIn company page">
+            <input
+              className="w-full rounded border px-3 py-2 text-sm"
+              placeholder="https://www.linkedin.com/company/..."
+              value={form.linkedinUrl}
+              onChange={(e) => setForm({ ...form, linkedinUrl: e.target.value })}
+            />
+          </Field>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label="Street">
+              <input
+                className="w-full rounded border px-3 py-2 text-sm"
+                value={form.addressStreet}
+                onChange={(e) => setForm({ ...form, addressStreet: e.target.value })}
+              />
+            </Field>
+            <Field label="City">
+              <input
+                className="w-full rounded border px-3 py-2 text-sm"
+                value={form.addressCity}
+                onChange={(e) => setForm({ ...form, addressCity: e.target.value })}
+              />
+            </Field>
+            <Field label="Postcode">
+              <input
+                className="w-full rounded border px-3 py-2 text-sm"
+                value={form.addressPostcode}
+                onChange={(e) => setForm({ ...form, addressPostcode: e.target.value })}
+              />
+            </Field>
+          </div>
+          <button disabled={saving} className="rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </form>
+      ) : (
+        <section className="rounded border bg-white p-4 text-sm">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+            <DetailRow label="Website">
+              {company.website ? (
+                <a href={company.website} target="_blank" rel="noreferrer" className="text-blue-600">
+                  {company.website}
+                </a>
+              ) : (
+                "—"
+              )}
+            </DetailRow>
+            <DetailRow label="LinkedIn">
+              {company.linkedinUrl ? (
+                <a href={company.linkedinUrl} target="_blank" rel="noreferrer" className="text-blue-600">
+                  {company.linkedinUrl}
+                </a>
+              ) : (
+                "—"
+              )}
+            </DetailRow>
+            <DetailRow label="Address">
+              {hasAddress
+                ? [company.addressStreet, company.addressCity, company.addressPostcode].filter(Boolean).join(", ")
+                : "—"}
+            </DetailRow>
+          </dl>
+        </section>
+      )}
 
       {company.notes && <p className="rounded border bg-white p-3 text-sm">{company.notes}</p>}
 
@@ -151,6 +288,24 @@ export function CompanyDetail() {
           ))}
         </ul>
       </section>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 block text-slate-600">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs uppercase text-slate-500">{label}</dt>
+      <dd>{children}</dd>
     </div>
   );
 }

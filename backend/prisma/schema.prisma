@@ -47,10 +47,14 @@ model Company {
   id                 String             @id @default(uuid())
   name               String
   website            String?
+  linkedinUrl        String?
   industry           String?
   companyType        CompanyType?
   size               String?
   hqLocation         String?
+  addressStreet      String?
+  addressCity        String?
+  addressPostcode    String?
   relationshipStatus RelationshipStatus @default(PROSPECT)
   notes              String?
 
@@ -105,6 +109,10 @@ model Person {
   name        String
   email       String?
   phone       String?
+  linkedinUrl String?
+  addressStreet   String?
+  addressCity     String?
+  addressPostcode String?
 
   // Candidate-specific fields
   currentEmployerId    String?

@@ -1,16 +1,21 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { optionalString, optionalUrl } from "../lib/zodHelpers";
 
 export const companiesRouter = Router();
 
 const companySchema = z.object({
   name: z.string().min(1),
-  website: z.string().optional(),
+  website: optionalUrl,
+  linkedinUrl: optionalUrl,
   industry: z.string().optional(),
   companyType: z.enum(["PARTNER", "ISV", "CONSULTANCY", "END_USER"]).optional(),
   size: z.string().optional(),
   hqLocation: z.string().optional(),
+  addressStreet: optionalString,
+  addressCity: optionalString,
+  addressPostcode: optionalString,
   relationshipStatus: z.enum(["PROSPECT", "ACTIVE_CLIENT", "DORMANT", "DO_NOT_CONTACT"]).optional(),
   notes: z.string().optional(),
 });
