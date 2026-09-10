@@ -34,18 +34,7 @@ export default function SkillPicker(props: Props) {
   const [error, setError] = useState<string | null>(null);
 
   function loadTree() {
-    api.get<SkillNode[]>("/api/skills/tree").then((t) => {
-      setTree(t);
-      setExpanded((prev) => {
-        if (prev.size) return prev;
-        // Expand everything on first load — the starter tree is small
-        // enough that this is more useful than a wall of collapsed arrows.
-        const all = new Set<string>();
-        const collect = (nodes: SkillNode[]) => nodes.forEach((n) => (all.add(n.id), collect(n.children)));
-        collect(t);
-        return all;
-      });
-    });
+    api.get<SkillNode[]>("/api/skills/tree").then(setTree);
   }
 
   useEffect(loadTree, []);
@@ -141,6 +130,21 @@ export default function SkillPicker(props: Props) {
   const idealSet = props.mode === "job" ? new Set(props.idealSkillIds) : null;
   const draftSet = props.mode === "draft" ? new Set(props.selectedSkillIds) : null;
 
+  function isNodeAssigned(id: string): boolean {
+    if (props.mode === "person") return !!assignedMap?.has(id);
+    if (props.mode === "job") return !!essentialSet?.has(id) || !!idealSet?.has(id);
+    return !!draftSet?.has(id);
+  }
+
+  // How many skills are assigned/selected anywhere in this node's subtree
+  // (itself included, since a category node can be assigned directly too) —
+  // shown as a badge so a collapsed category doesn't hide that it's in use.
+  function countAssignedInSubtree(node: SkillNode): number {
+    let count = isNodeAssigned(node.id) ? 1 : 0;
+    for (const child of node.children) count += countAssignedInSubtree(child);
+    return count;
+  }
+
   function renderAddForm(parentId: string | null, depth: number) {
     return (
       <div className="flex items-center gap-2 py-1" style={{ paddingLeft: depth * 18 }}>
@@ -174,6 +178,7 @@ export default function SkillPicker(props: Props) {
     const hasChildren = node.children.length > 0;
     const isExpanded = expanded.has(node.id);
     const assignment = assignedMap?.get(node.id);
+    const collapsedCount = hasChildren && !isExpanded ? countAssignedInSubtree(node) : 0;
 
     return (
       <div key={node.id}>
@@ -207,6 +212,15 @@ export default function SkillPicker(props: Props) {
             </label>
           ) : (
             <span className="text-sm">{node.name}</span>
+          )}
+
+          {collapsedCount > 0 && (
+            <span
+              className="rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700"
+              title={`${collapsedCount} skill${collapsedCount === 1 ? "" : "s"} assigned within this category`}
+            >
+              {collapsedCount}
+            </span>
           )}
 
           {props.mode === "person" && assignment && (
