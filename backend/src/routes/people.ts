@@ -89,7 +89,7 @@ async function toPrismaData(input: z.infer<typeof personSchema>) {
 }
 
 peopleRouter.get("/", async (req, res) => {
-  const { q, personType, skill, includeArchived } = req.query;
+  const { q, personType, skillId, location, companyId, stage, includeArchived } = req.query;
 
   const people = await prisma.person.findMany({
     where: {
@@ -103,10 +103,15 @@ peopleRouter.get("/", async (req, res) => {
                 { name: { contains: String(q), mode: "insensitive" } },
                 { email: { contains: String(q), mode: "insensitive" } },
                 { motivationsText: { contains: String(q), mode: "insensitive" } },
+                { company: { name: { contains: String(q), mode: "insensitive" } } },
+                { currentEmployer: { name: { contains: String(q), mode: "insensitive" } } },
               ],
             }
           : {},
-        skill ? { skills: { some: { skill: { name: String(skill) } } } } : {},
+        skillId ? { skills: { some: { skillId: String(skillId) } } } : {},
+        location ? { location: { contains: String(location), mode: "insensitive" } } : {},
+        companyId ? { companyId: String(companyId) } : {},
+        stage ? { jobApplications: { some: { stage: String(stage) as any } } } : {},
       ],
     },
     include: {
@@ -114,6 +119,9 @@ peopleRouter.get("/", async (req, res) => {
       company: true,
       currentEmployer: true,
       interactions: { orderBy: { occurredAt: "desc" }, take: 1 },
+      // "Current stage" for the list view: whichever pipeline entry this
+      // candidate touched most recently, not every application they've ever had.
+      jobApplications: { orderBy: { updatedAt: "desc" }, take: 1, include: { job: true } },
     },
     orderBy: { name: "asc" },
   });

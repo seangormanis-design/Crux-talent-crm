@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import DuplicateWarningModal from "../components/DuplicateWarningModal";
@@ -11,12 +11,18 @@ interface Person {
   personType: "CANDIDATE" | "CLIENT_CONTACT";
   name: string;
   email?: string;
+  phone?: string;
+  linkedinUrl?: string;
+  location?: string;
   currentTitle?: string;
   jobTitle?: string;
   archivedAt?: string | null;
+  createdAt?: string;
   company?: { name: string } | null;
   currentEmployer?: { name: string } | null;
   interactions?: { occurredAt: string }[];
+  skills?: { skill: { id: string; name: string } }[];
+  jobApplications?: { stage: string; job: { title: string } }[];
 }
 
 function employerOf(p: Person): string {
@@ -28,11 +34,113 @@ function lastNoteOf(p: Person): string {
   return latest ? new Date(latest).toLocaleDateString() : "—";
 }
 
+const CANDIDATE_STAGE_OPTIONS = ["SOURCED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"];
+
+interface ColumnDef {
+  key: string;
+  label: string;
+  defaultVisible: boolean;
+}
+
+// "Name" isn't in this list — it's always shown, and isn't optional.
+const COLUMNS: ColumnDef[] = [
+  { key: "type", label: "Type", defaultVisible: true },
+  { key: "title", label: "Title", defaultVisible: true },
+  { key: "employer", label: "Employer", defaultVisible: true },
+  { key: "email", label: "Email", defaultVisible: true },
+  { key: "phone", label: "Phone", defaultVisible: false },
+  { key: "linkedin", label: "LinkedIn", defaultVisible: false },
+  { key: "location", label: "Location", defaultVisible: false },
+  { key: "skills", label: "Skills", defaultVisible: false },
+  { key: "stage", label: "Stage", defaultVisible: false },
+  { key: "lastNote", label: "Date of last note", defaultVisible: true },
+  { key: "dateAdded", label: "Date added", defaultVisible: false },
+];
+
+function cellValue(p: Person, key: string): string {
+  switch (key) {
+    case "type":
+      return p.personType === "CANDIDATE" ? "Candidate" : "Client contact";
+    case "title":
+      return p.currentTitle ?? p.jobTitle ?? "—";
+    case "employer":
+      return employerOf(p);
+    case "email":
+      return p.email ?? "—";
+    case "phone":
+      return p.phone ?? "—";
+    case "linkedin":
+      return p.linkedinUrl ?? "—";
+    case "location":
+      return p.location ?? "—";
+    case "skills":
+      return p.skills?.map((s) => s.skill.name).join(", ") || "—";
+    case "stage": {
+      const latest = p.jobApplications?.[0];
+      return latest ? `${latest.stage.replaceAll("_", " ")} (${latest.job.title})` : "—";
+    }
+    case "lastNote":
+      return lastNoteOf(p);
+    case "dateAdded":
+      return p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—";
+    default:
+      return "—";
+  }
+}
+
+// Raw comparable value for sorting — dates/text lowercased so sort order
+// matches what's actually displayed, not incidental casing.
+function sortValue(p: Person, key: string): string {
+  if (key === "name") return p.name.toLowerCase();
+  if (key === "lastNote") return p.interactions?.[0]?.occurredAt ?? "";
+  if (key === "dateAdded") return p.createdAt ?? "";
+  if (key === "stage") return p.jobApplications?.[0]?.stage ?? "";
+  return cellValue(p, key).toLowerCase();
+}
+
+interface ListPrefs {
+  personType: string;
+  skillId: string;
+  location: string;
+  companyId: string;
+  stage: string;
+  showArchived: boolean;
+  visibleColumns: string[];
+  sortKey: string;
+  sortDir: "asc" | "desc";
+}
+
+const PREFS_STORAGE_KEY = "crux.peopleList.prefs.v1";
+
+const DEFAULT_PREFS: ListPrefs = {
+  personType: "",
+  skillId: "",
+  location: "",
+  companyId: "",
+  stage: "",
+  showArchived: false,
+  visibleColumns: COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key),
+  sortKey: "name",
+  sortDir: "asc",
+};
+
+function loadPrefs(): ListPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_STORAGE_KEY);
+    if (!raw) return DEFAULT_PREFS;
+    return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_PREFS;
+  }
+}
+
 export function PeopleList() {
   const [people, setPeople] = useState<Person[]>([]);
   const [q, setQ] = useState("");
-  const [personType, setPersonType] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
+  const [prefs, setPrefs] = useState<ListPrefs>(loadPrefs);
+  const [skillOptions, setSkillOptions] = useState<{ id: string; name: string }[]>([]);
+  const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -42,15 +150,71 @@ export function PeopleList() {
   const [duplicateMatches, setDuplicateMatches] = useState<any[] | null>(null);
   const navigate = useNavigate();
 
-  function load(query = q, type = personType, archived = showArchived) {
+  function load(query = q, filters: ListPrefs = prefs) {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
-    if (type) params.set("personType", type);
-    if (archived) params.set("includeArchived", "true");
+    if (filters.personType) params.set("personType", filters.personType);
+    if (filters.skillId) params.set("skillId", filters.skillId);
+    if (filters.location) params.set("location", filters.location);
+    if (filters.companyId) params.set("companyId", filters.companyId);
+    if (filters.stage) params.set("stage", filters.stage);
+    if (filters.showArchived) params.set("includeArchived", "true");
     api.get<Person[]>(`/api/people?${params.toString()}`).then(setPeople);
   }
 
+  // Any change to a server-side filter re-fetches; sort/column-visibility
+  // changes are purely client-side and don't need a round-trip.
+  function updateFilters(patch: Partial<ListPrefs>) {
+    setPrefs((prev) => {
+      const next = { ...prev, ...patch };
+      load(q, next);
+      return next;
+    });
+  }
+
+  function updatePrefsOnly(patch: Partial<ListPrefs>) {
+    setPrefs((prev) => ({ ...prev, ...patch }));
+  }
+
   useEffect(() => load(), []);
+  useEffect(() => {
+    api.get<{ id: string; name: string }[]>("/api/skills").then(setSkillOptions);
+    api.get<{ id: string; name: string }[]>("/api/companies").then(setCompanyOptions);
+  }, []);
+  useEffect(() => {
+    localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs));
+  }, [prefs]);
+
+  const sortedPeople = useMemo(() => {
+    const arr = [...people];
+    arr.sort((a, b) => {
+      const av = sortValue(a, prefs.sortKey);
+      const bv = sortValue(b, prefs.sortKey);
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return prefs.sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [people, prefs.sortKey, prefs.sortDir]);
+
+  function toggleSort(key: string) {
+    updatePrefsOnly({
+      sortKey: key,
+      sortDir: prefs.sortKey === key && prefs.sortDir === "asc" ? "desc" : "asc",
+    });
+  }
+
+  function toggleColumn(key: string) {
+    updatePrefsOnly({
+      visibleColumns: prefs.visibleColumns.includes(key)
+        ? prefs.visibleColumns.filter((k) => k !== key)
+        : [...prefs.visibleColumns, key],
+    });
+  }
+
+  function sortIndicator(key: string) {
+    if (prefs.sortKey !== key) return null;
+    return <span className="ml-1 text-slate-400">{prefs.sortDir === "asc" ? "▲" : "▼"}</span>;
+  }
 
   function resetCreateForm() {
     setName("");
@@ -160,57 +324,126 @@ export function PeopleList() {
         />
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <input
-          className="w-full max-w-sm rounded border px-3 py-2 text-sm"
-          placeholder="Search people..."
+          className="w-full max-w-xs rounded border px-3 py-2 text-sm"
+          placeholder="Search name, email, company..."
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
-            load(e.target.value, personType, showArchived);
+            load(e.target.value, prefs);
           }}
         />
         <select
           className="rounded border px-2 py-2 text-sm"
-          value={personType}
-          onChange={(e) => {
-            setPersonType(e.target.value);
-            load(q, e.target.value, showArchived);
-          }}
+          value={prefs.personType}
+          onChange={(e) => updateFilters({ personType: e.target.value })}
         >
-          <option value="">All types</option>
-          <option value="CANDIDATE">Candidates</option>
-          <option value="CLIENT_CONTACT">Client contacts</option>
+          <option value="">All people</option>
+          <option value="CANDIDATE">Candidates only</option>
+          <option value="CLIENT_CONTACT">Client contacts only</option>
+        </select>
+        <select
+          className="rounded border px-2 py-2 text-sm"
+          value={prefs.skillId}
+          onChange={(e) => updateFilters({ skillId: e.target.value })}
+        >
+          <option value="">All skills</option>
+          {skillOptions.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <input
+          className="w-36 rounded border px-2 py-2 text-sm"
+          placeholder="Location"
+          value={prefs.location}
+          onChange={(e) => updateFilters({ location: e.target.value })}
+        />
+        <select
+          className="rounded border px-2 py-2 text-sm"
+          value={prefs.stage}
+          onChange={(e) => updateFilters({ stage: e.target.value })}
+        >
+          <option value="">All stages</option>
+          {CANDIDATE_STAGE_OPTIONS.map((s) => (
+            <option key={s} value={s}>
+              {s.replaceAll("_", " ")}
+            </option>
+          ))}
+        </select>
+        <select
+          className="rounded border px-2 py-2 text-sm"
+          value={prefs.companyId}
+          onChange={(e) => updateFilters({ companyId: e.target.value })}
+        >
+          <option value="">All companies</option>
+          {companyOptions.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
         </select>
         <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">
           <input
             type="checkbox"
-            checked={showArchived}
-            onChange={(e) => {
-              setShowArchived(e.target.checked);
-              load(q, personType, e.target.checked);
-            }}
+            checked={prefs.showArchived}
+            onChange={(e) => updateFilters({ showArchived: e.target.checked })}
           />
           Show archived
         </label>
+
+        <div className="relative ml-auto">
+          <button
+            onClick={() => setShowColumnPicker((s) => !s)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            Columns
+          </button>
+          {showColumnPicker && (
+            <>
+              <div className="fixed inset-0 z-0" onClick={() => setShowColumnPicker(false)} />
+              <div className="absolute right-0 z-10 mt-1 w-48 rounded border bg-white p-2 shadow-lg">
+              {COLUMNS.map((col) => (
+                <label key={col.key} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={prefs.visibleColumns.includes(col.key)}
+                    onChange={() => toggleColumn(col.key)}
+                  />
+                  {col.label}
+                </label>
+              ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded border bg-white">
+      <div className="overflow-x-auto rounded border bg-white">
         <table className="w-full text-sm">
           <thead className="bg-slate-100 text-left">
             <tr>
-              <th className="px-3 py-2">Name</th>
-              <th className="px-3 py-2">Type</th>
-              <th className="px-3 py-2">Title</th>
-              <th className="px-3 py-2">Employer</th>
-              <th className="px-3 py-2">Email</th>
-              <th className="px-3 py-2">Date of last note</th>
+              <th className="cursor-pointer select-none px-3 py-2" onClick={() => toggleSort("name")}>
+                Name{sortIndicator("name")}
+              </th>
+              {COLUMNS.filter((c) => prefs.visibleColumns.includes(c.key)).map((col) => (
+                <th
+                  key={col.key}
+                  className="cursor-pointer select-none whitespace-nowrap px-3 py-2"
+                  onClick={() => toggleSort(col.key)}
+                >
+                  {col.label}
+                  {sortIndicator(col.key)}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {people.map((p) => (
+            {sortedPeople.map((p) => (
               <tr key={p.id} className={`border-t ${p.archivedAt ? "opacity-50" : ""}`}>
-                <td className="px-3 py-2">
+                <td className="whitespace-nowrap px-3 py-2">
                   <Link to={`/people/${p.id}`} className="text-blue-600">
                     {p.name}
                   </Link>
@@ -218,13 +451,26 @@ export function PeopleList() {
                     <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Archived</span>
                   )}
                 </td>
-                <td className="px-3 py-2">{p.personType === "CANDIDATE" ? "Candidate" : "Client contact"}</td>
-                <td className="px-3 py-2">{p.currentTitle ?? p.jobTitle ?? "—"}</td>
-                <td className="px-3 py-2">{employerOf(p)}</td>
-                <td className="px-3 py-2">{p.email ?? "—"}</td>
-                <td className="px-3 py-2">{lastNoteOf(p)}</td>
+                {COLUMNS.filter((c) => prefs.visibleColumns.includes(c.key)).map((col) => (
+                  <td key={col.key} className="whitespace-nowrap px-3 py-2">
+                    {col.key === "linkedin" && p.linkedinUrl ? (
+                      <a href={p.linkedinUrl} target="_blank" rel="noreferrer" className="text-blue-600">
+                        Profile
+                      </a>
+                    ) : (
+                      cellValue(p, col.key)
+                    )}
+                  </td>
+                ))}
               </tr>
             ))}
+            {!sortedPeople.length && (
+              <tr>
+                <td colSpan={prefs.visibleColumns.length + 1} className="px-3 py-6 text-center text-slate-400">
+                  No matches.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
