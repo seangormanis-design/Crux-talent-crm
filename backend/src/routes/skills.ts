@@ -45,14 +45,19 @@ const skillSchema = z.object({
 // Skills are an extensible tag tree — a new one (at any depth, under any
 // existing parent) is added here at any time without a schema change, and
 // is immediately available everywhere else that reads the tree/flat list.
+// Uniqueness is per-parent, not global: the same leaf name can exist under
+// two different branches (e.g. "Finance" under both D365 F&O and Business
+// Central) as distinct nodes.
 skillsRouter.post("/", async (req, res) => {
   const parsed = skillSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const skill = await prisma.skill.upsert({
-    where: { name: parsed.data.name },
-    update: parsed.data.parentId !== undefined ? { parentId: parsed.data.parentId } : {},
-    create: { name: parsed.data.name, parentId: parsed.data.parentId ?? null },
-  });
+  const parentId = parsed.data.parentId ?? null;
+  // Prisma's compound-unique selector type doesn't accept null for a
+  // nullable field (even though the DB constraint does), so a plain
+  // upsert-by-compound-key isn't available for a top-level (parentId: null)
+  // skill — find-then-create instead.
+  const existing = await prisma.skill.findFirst({ where: { parentId, name: parsed.data.name } });
+  const skill = existing ?? (await prisma.skill.create({ data: { name: parsed.data.name, parentId } }));
   res.status(201).json(skill);
 });

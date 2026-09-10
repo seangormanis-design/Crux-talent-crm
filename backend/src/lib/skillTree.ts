@@ -24,6 +24,17 @@ export const SKILL_TREE: SkillTreeNode[] = [
     children: [{ name: "Sales" }, { name: "Customer Service" }, { name: "Field Service" }, { name: "Marketing" }],
   },
   {
+    name: "Business Central",
+    children: [
+      { name: "Finance" },
+      { name: "Sales & Purchasing" },
+      { name: "Inventory & Warehousing" },
+      { name: "Manufacturing" },
+      { name: "Service Management" },
+      { name: "Power Platform Integration" },
+    ],
+  },
+  {
     name: "Power Platform",
     children: [{ name: "Power Apps" }, { name: "Power Automate" }, { name: "Power BI" }, { name: "Copilot Studio" }],
   },
@@ -31,17 +42,19 @@ export const SKILL_TREE: SkillTreeNode[] = [
   { name: "Data & AI" },
 ];
 
-// Upsert-by-name is what makes this safe to re-run: a name that already
-// exists elsewhere in the tree (e.g. "Power BI" previously seeded as a
-// flat top-level skill) gets reparented to its new designated place rather
-// than duplicated, without touching any existing PersonSkill/Job links to it.
+// Upsert-by-(parentId, name) is what makes this safe to re-run without
+// duplicating anything already in place. Uniqueness is per-parent, so the
+// same leaf name can exist under two different branches as distinct nodes
+// (e.g. "Finance" under both D365 F&O and Business Central) — re-running
+// this never merges or reparents those, it only fills in what's missing.
 export async function seedSkillTree(prisma: PrismaClient, nodes: SkillTreeNode[] = SKILL_TREE, parentId: string | null = null) {
   for (const node of nodes) {
-    const skill = await prisma.skill.upsert({
-      where: { name: node.name },
-      update: { parentId },
-      create: { name: node.name, parentId },
-    });
+    // Prisma's compound-unique selector type doesn't accept null for a
+    // nullable field (even though the DB constraint does), so a plain
+    // upsert-by-compound-key isn't available for top-level (parentId: null)
+    // nodes — find-then-create instead.
+    const existing = await prisma.skill.findFirst({ where: { parentId, name: node.name } });
+    const skill = existing ?? (await prisma.skill.create({ data: { name: node.name, parentId } }));
     if (node.children?.length) {
       await seedSkillTree(prisma, node.children, skill.id);
     }

@@ -190,9 +190,13 @@ model Person {
 // A hierarchical tag tree (any depth), shared by Person and Job skill
 // assignment — not a fixed set of hardcoded categories. Grows as skills are
 // added via the picker; parentId is null for a top-level branch.
+//
+// Uniqueness is scoped to (parentId, name), not name alone — the same leaf
+// name can legitimately appear under two different branches (e.g. "Finance"
+// under both D365 F&O and Business Central), and each is a distinct node.
 model Skill {
   id       String  @id @default(uuid())
-  name     String  @unique
+  name     String
   parentId String?
   parent   Skill?  @relation("SkillHierarchy", fields: [parentId], references: [id])
   children Skill[] @relation("SkillHierarchy")
@@ -201,6 +205,7 @@ model Skill {
   jobsEssential Job[] @relation("JobEssentialSkills")
   jobsIdeal     Job[] @relation("JobIdealSkills")
 
+  @@unique([parentId, name], name: "parentId_name")
   @@map("skills")
   @@index([parentId])
 }
