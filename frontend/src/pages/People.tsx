@@ -48,7 +48,8 @@ interface ColumnDef {
   defaultVisible: boolean;
 }
 
-// "Name" isn't in this list — it's always shown, and isn't optional.
+// "First Name"/"Surname" aren't in this list — they're always shown, as two
+// separate sortable columns, and aren't optional.
 const COLUMNS: ColumnDef[] = [
   { key: "type", label: "Type", defaultVisible: true },
   { key: "title", label: "Title", defaultVisible: true },
@@ -106,6 +107,10 @@ function cellValue(p: Person, key: string): string {
 // Raw comparable value for sorting — dates/text lowercased so sort order
 // matches what's actually displayed, not incidental casing.
 function sortValue(p: Person, key: string): string {
+  if (key === "firstName") return (p.firstName ?? "").toLowerCase();
+  if (key === "surname") return (p.surname ?? "").toLowerCase();
+  // Kept for backward compatibility with any already-persisted sort
+  // preference from before Name split into First Name/Surname columns.
   if (key === "name") return fullName(p).toLowerCase();
   if (key === "lastNote") return p.interactions?.[0]?.occurredAt ?? "";
   if (key === "dateAdded") return p.createdAt ?? "";
@@ -135,7 +140,7 @@ const DEFAULT_PREFS: ListPrefs = {
   stage: "",
   showArchived: false,
   visibleColumns: COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key),
-  sortKey: "name",
+  sortKey: "firstName",
   sortDir: "asc",
 };
 
@@ -532,8 +537,11 @@ export function PeopleList() {
         <table className="w-full text-sm">
           <thead className="bg-slate-100 text-left">
             <tr>
-              <th className="cursor-pointer select-none px-3 py-2" onClick={() => toggleSort("name")}>
-                Name{sortIndicator("name")}
+              <th className="cursor-pointer select-none px-3 py-2" onClick={() => toggleSort("firstName")}>
+                First Name{sortIndicator("firstName")}
+              </th>
+              <th className="cursor-pointer select-none px-3 py-2" onClick={() => toggleSort("surname")}>
+                Surname{sortIndicator("surname")}
               </th>
               {COLUMNS.filter((c) => prefs.visibleColumns.includes(c.key)).map((col) => (
                 <th
@@ -552,7 +560,12 @@ export function PeopleList() {
               <tr key={p.id} className={`border-t ${p.archivedAt ? "opacity-50" : ""}`}>
                 <td className="whitespace-nowrap px-3 py-2">
                   <Link to={`/people/${p.id}`} className="text-blue-600">
-                    {fullName(p)}
+                    {p.firstName}
+                  </Link>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2">
+                  <Link to={`/people/${p.id}`} className="text-blue-600">
+                    {p.surname || "—"}
                   </Link>
                   {p.archivedAt && (
                     <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Archived</span>
@@ -573,7 +586,7 @@ export function PeopleList() {
             ))}
             {!sortedPeople.length && (
               <tr>
-                <td colSpan={prefs.visibleColumns.length + 1} className="px-3 py-6 text-center text-slate-400">
+                <td colSpan={prefs.visibleColumns.length + 2} className="px-3 py-6 text-center text-slate-400">
                   No matches.
                 </td>
               </tr>
