@@ -893,9 +893,7 @@ export function PersonDetail() {
         </button>
       </div>
 
-      <div className={person.personType === "CANDIDATE" ? "grid grid-cols-1 gap-6 lg:grid-cols-2" : ""}>
-      <div className="space-y-6">
-        <section className="rounded border bg-white p-4 text-sm">
+      <section className="rounded border bg-white p-4 text-sm">
           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
             <DetailRow label="Work email">
               <InlineField
@@ -1061,69 +1059,60 @@ export function PersonDetail() {
           </div>
         </section>
 
-        <section className="rounded border bg-white p-3 text-sm">
-          <h2 className="mb-2 font-medium">Tags</h2>
-          <TagPicker
-            taggableType="PERSON"
-            taggableId={person.id}
-            attachedLinks={person.tags ?? []}
-            onChange={load}
-          />
-        </section>
-
-        <section className="rounded border bg-white p-3 text-sm">
-          <h2 className="mb-2 font-medium">Custom fields</h2>
-          <CustomFieldsPanel taggableType="PERSON" taggableId={person.id} />
-        </section>
-
-      {person.personType === "CANDIDATE" && (
-        <section className="rounded border bg-white p-3 text-sm">
-          <p>
-            <strong>Seniority:</strong> {person.seniority ?? "—"} · <strong>Location:</strong> {person.location ?? "—"} ·{" "}
-            <strong>Preference:</strong> {person.workPreference ?? "—"}
-          </p>
-          <p className="mt-1">
-            <strong>Motivations:</strong> {person.motivationsText ?? "—"}
-          </p>
-          <p className="mt-1">
-            <strong>Skills:</strong>{" "}
-            {person.skills?.length
-              ? [...person.skills]
-                  .sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary))
-                  .map((s: any) => (s.isPrimary ? `★ ${s.skill.name}` : s.skill.name))
-                  .join(", ")
-              : "—"}
-          </p>
-        </section>
-      )}
-
-      {person.personType === "CANDIDATE" && (
-        <section className="rounded border bg-white p-3 text-sm">
-          <h2 className="mb-2 font-medium">Role Type</h2>
-          <p className="mb-2 text-xs text-slate-500">
-            Select every role type that applies — a candidate can hold more than one.
-          </p>
-          <RoleTypePicker
-            selectedIds={(person.roleTypes ?? []).map((rt: any) => rt.id)}
-            onSave={saveRoleTypes}
-          />
-        </section>
-      )}
-
-      {person.personType === "CANDIDATE" && (
-        <section className="rounded border bg-white p-3 text-sm">
-          <h2 className="mb-2 font-medium">Skills</h2>
-          <p className="mb-2 text-xs text-slate-500">
-            Tick a skill to assign it. Mark up to 5 as Primary — their real specialisms — the rest count as Secondary.
-          </p>
-          <SkillPicker
-            mode="person"
-            personId={person.id}
-            assigned={(person.skills ?? []).map((s: any) => ({ skillId: s.skill.id, isPrimary: s.isPrimary }))}
-            onChange={load}
-          />
-        </section>
-      )}
+      <div className={person.personType === "CANDIDATE" ? "grid grid-cols-1 gap-6 lg:grid-cols-2" : ""}>
+      <div className="space-y-6">
+      <section>
+        <h2 className="mb-2 font-medium">
+          Interaction history
+          {person.linkedPerson && <span className="ml-1 text-xs font-normal text-slate-400">(combined with linked record)</span>}
+        </h2>
+        {extractError && <p className="mb-2 text-sm text-red-600">{extractError}</p>}
+        {reflectError && <p className="mb-2 text-sm text-red-600">{reflectError}</p>}
+        <ul className="space-y-1 text-sm">
+          {(person.combinedInteractions ?? person.interactions)?.map((i: any) => (
+            <li key={i.id} className="rounded border bg-white p-2">
+              <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
+              {i.type.replaceAll("_", " ")} — <span className="whitespace-pre-wrap">{i.notes}</span>
+              {i.transcript && (
+                <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">transcript attached</span>
+              )}
+              {person.linkedPerson && i.sourcePersonId === person.linkedPerson.id && (
+                <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
+                  via {fullName(person.linkedPerson)}
+                </span>
+              )}
+              {i.notes?.trim() && (
+                <div>
+                  {i.intelligence && <IntelligenceSummary intelligence={i.intelligence} />}
+                  <button
+                    type="button"
+                    disabled={extractingId === i.id}
+                    onClick={() => runExtractIntelligence(i.id)}
+                    className="mt-1 text-xs text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    {extractingId === i.id
+                      ? "Extracting..."
+                      : i.intelligence
+                        ? "Re-extract intelligence"
+                        : "Extract Intelligence"}
+                  </button>
+                  {i.type === "QUALIFICATION_CALL" && (
+                    <ReflectionPanel
+                      reflection={i.reflection}
+                      reflecting={reflectingId === i.id}
+                      onReflect={() => runReflect(i.id)}
+                      onFeedback={(reaction, comment) => submitReflectionFeedback(i.id, reaction, comment)}
+                    />
+                  )}
+                </div>
+              )}
+            </li>
+          ))}
+          {!(person.combinedInteractions ?? person.interactions)?.length && (
+            <li className="text-slate-400">None yet</li>
+          )}
+        </ul>
+      </section>
 
       <section>
         <h2 className="mb-2 font-medium">Log an interaction</h2>
@@ -1230,58 +1219,69 @@ export function PersonDetail() {
         </form>
       </section>
 
-      <section>
-        <h2 className="mb-2 font-medium">
-          Interaction history
-          {person.linkedPerson && <span className="ml-1 text-xs font-normal text-slate-400">(combined with linked record)</span>}
-        </h2>
-        {extractError && <p className="mb-2 text-sm text-red-600">{extractError}</p>}
-        {reflectError && <p className="mb-2 text-sm text-red-600">{reflectError}</p>}
-        <ul className="space-y-1 text-sm">
-          {(person.combinedInteractions ?? person.interactions)?.map((i: any) => (
-            <li key={i.id} className="rounded border bg-white p-2">
-              <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
-              {i.type.replaceAll("_", " ")} — <span className="whitespace-pre-wrap">{i.notes}</span>
-              {i.transcript && (
-                <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">transcript attached</span>
-              )}
-              {person.linkedPerson && i.sourcePersonId === person.linkedPerson.id && (
-                <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
-                  via {fullName(person.linkedPerson)}
-                </span>
-              )}
-              {i.notes?.trim() && (
-                <div>
-                  {i.intelligence && <IntelligenceSummary intelligence={i.intelligence} />}
-                  <button
-                    type="button"
-                    disabled={extractingId === i.id}
-                    onClick={() => runExtractIntelligence(i.id)}
-                    className="mt-1 text-xs text-blue-600 hover:underline disabled:opacity-50"
-                  >
-                    {extractingId === i.id
-                      ? "Extracting..."
-                      : i.intelligence
-                        ? "Re-extract intelligence"
-                        : "Extract Intelligence"}
-                  </button>
-                  {i.type === "QUALIFICATION_CALL" && (
-                    <ReflectionPanel
-                      reflection={i.reflection}
-                      reflecting={reflectingId === i.id}
-                      onReflect={() => runReflect(i.id)}
-                      onFeedback={(reaction, comment) => submitReflectionFeedback(i.id, reaction, comment)}
-                    />
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
-          {!(person.combinedInteractions ?? person.interactions)?.length && (
-            <li className="text-slate-400">None yet</li>
-          )}
-        </ul>
-      </section>
+        <section className="rounded border bg-white p-3 text-sm">
+          <h2 className="mb-2 font-medium">Tags</h2>
+          <TagPicker
+            taggableType="PERSON"
+            taggableId={person.id}
+            attachedLinks={person.tags ?? []}
+            onChange={load}
+          />
+        </section>
+
+        <section className="rounded border bg-white p-3 text-sm">
+          <h2 className="mb-2 font-medium">Custom fields</h2>
+          <CustomFieldsPanel taggableType="PERSON" taggableId={person.id} />
+        </section>
+
+      {person.personType === "CANDIDATE" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <p>
+            <strong>Seniority:</strong> {person.seniority ?? "—"} · <strong>Location:</strong> {person.location ?? "—"} ·{" "}
+            <strong>Preference:</strong> {person.workPreference ?? "—"}
+          </p>
+          <p className="mt-1">
+            <strong>Motivations:</strong> {person.motivationsText ?? "—"}
+          </p>
+          <p className="mt-1">
+            <strong>Skills:</strong>{" "}
+            {person.skills?.length
+              ? [...person.skills]
+                  .sort((a: any, b: any) => Number(b.isPrimary) - Number(a.isPrimary))
+                  .map((s: any) => (s.isPrimary ? `★ ${s.skill.name}` : s.skill.name))
+                  .join(", ")
+              : "—"}
+          </p>
+        </section>
+      )}
+
+      {person.personType === "CANDIDATE" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <h2 className="mb-2 font-medium">Role Type</h2>
+          <p className="mb-2 text-xs text-slate-500">
+            Select every role type that applies — a candidate can hold more than one.
+          </p>
+          <RoleTypePicker
+            selectedIds={(person.roleTypes ?? []).map((rt: any) => rt.id)}
+            onSave={saveRoleTypes}
+          />
+        </section>
+      )}
+
+      {person.personType === "CANDIDATE" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <h2 className="mb-2 font-medium">Skills</h2>
+          <p className="mb-2 text-xs text-slate-500">
+            Tick a skill to assign it. Mark up to 5 as Primary — their real specialisms — the rest count as Secondary.
+          </p>
+          <SkillPicker
+            mode="person"
+            personId={person.id}
+            assigned={(person.skills ?? []).map((s: any) => ({ skillId: s.skill.id, isPrimary: s.isPrimary }))}
+            onChange={load}
+          />
+        </section>
+      )}
       </div>
 
       {person.personType === "CANDIDATE" && (
