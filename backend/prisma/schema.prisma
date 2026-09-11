@@ -432,10 +432,32 @@ model Interaction {
   createdBy   User?   @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
 
+  intelligence InteractionIntelligence?
+
   @@map("interactions")
   @@index([personId])
   @@index([jobId])
   @@index([companyId])
+}
+
+// AI-extracted intelligence from an interaction's notes — a derived artifact,
+// not part of the append-only human-authored history, so re-running Extract
+// Intelligence upserts (replaces) this rather than adding another row.
+model InteractionIntelligence {
+  id            String      @id @default(uuid())
+  interactionId String      @unique
+  interaction   Interaction @relation(fields: [interactionId], references: [id], onDelete: Cascade)
+
+  peopleMentioned    Json
+  companiesMentioned Json
+  marketSignals      Json
+  followUpActions    Json
+  notableQuotes      Json
+
+  model     String
+  createdAt DateTime @default(now())
+
+  @@map("interaction_intelligence")
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -144,7 +144,7 @@ peopleRouter.get("/:id", async (req, res) => {
       skills: { include: { skill: true } },
       roleTypes: true,
       documents: { include: { versions: true } },
-      interactions: { orderBy: { occurredAt: "desc" } },
+      interactions: { orderBy: { occurredAt: "desc" }, include: { intelligence: true } },
       jobApplications: { include: { job: true } },
       company: true,
       currentEmployer: true,
@@ -166,6 +166,7 @@ peopleRouter.get("/:id", async (req, res) => {
     const linkedInteractions = await prisma.interaction.findMany({
       where: { personId: linkedPerson.id },
       orderBy: { occurredAt: "desc" },
+      include: { intelligence: true },
     });
     combinedInteractions = [
       ...combinedInteractions,

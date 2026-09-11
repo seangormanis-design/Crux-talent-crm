@@ -618,16 +618,80 @@ const INTERACTION_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "TEXT", label: "Text" },
 ];
 
+// Guided template for Qualification Call notes — every section is optional
+// (leave anything blank that didn't come up) but gets its own text area so
+// nothing gets lost under the wrong heading. Stored as one concatenated,
+// clearly-labeled note (not seven separate fields) so it stays one coherent
+// record and still reads fine for Extract Intelligence.
+const QUALIFICATION_CALL_SECTIONS: { key: string; label: string; hint: string }[] = [
+  { key: "PRESENT", label: "Present", hint: "Thoughts, feelings, pulse" },
+  { key: "PAST", label: "Past", hint: "Experience, projects, skills, CV" },
+  { key: "FUTURE", label: "Future", hint: "Motivations, plans, desires, what matters most" },
+  { key: "AOB", label: "AOB", hint: "Salary, notice period, visa status" },
+  {
+    key: "THREATS",
+    label: "Threats",
+    hint: "Life-changing moments, other job offers, promotions, projects — anything that could derail a placement",
+  },
+  { key: "LEADS", label: "Leads", hint: "Names of other people worth targeting, market intel, company signals" },
+  { key: "PERSONAL_INFO", label: "Personal info", hint: "Hobbies, family, personal context worth remembering" },
+];
+
+function buildQualificationCallNotes(sections: Record<string, string>): string {
+  return QUALIFICATION_CALL_SECTIONS.map((s) => {
+    const text = sections[s.key]?.trim();
+    return text ? `${s.label.toUpperCase()}:\n${text}` : null;
+  })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function IntelligenceSummary({ intelligence }: { intelligence: any }) {
+  const sections = [
+    { label: "People mentioned", items: intelligence.peopleMentioned ?? [] },
+    { label: "Companies mentioned", items: intelligence.companiesMentioned ?? [] },
+    { label: "Market signals", items: intelligence.marketSignals ?? [] },
+    { label: "Follow-up actions", items: intelligence.followUpActions ?? [] },
+    { label: "Notable quotes", items: intelligence.notableQuotes ?? [] },
+  ].filter((s) => s.items.length > 0);
+
+  if (!sections.length) {
+    return (
+      <p className="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-400">
+        Nothing extracted — the notes didn't contain anything for these categories.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-1 space-y-1.5 rounded bg-slate-50 p-2 text-xs">
+      {sections.map((s) => (
+        <div key={s.label}>
+          <p className="font-medium text-slate-600">{s.label}</p>
+          <ul className="ml-3 list-disc text-slate-600">
+            {s.items.map((item: string, i: number) => (
+              <li key={i}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PersonDetail() {
   const { id } = useParams();
   const [person, setPerson] = useState<any>(null);
   const [note, setNote] = useState("");
+  const [qualificationSections, setQualificationSections] = useState<Record<string, string>>({});
   const [interactionType, setInteractionType] = useState("PHONE_CALL");
   const [interactionJobId, setInteractionJobId] = useState("");
   const [interactionCompanyId, setInteractionCompanyId] = useState("");
   const [interactionFollowUpAt, setInteractionFollowUpAt] = useState("");
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [extractingId, setExtractingId] = useState<string | null>(null);
+  const [extractError, setExtractError] = useState<string | null>(null);
 
   function load() {
     api.get(`/api/people/${id}`).then((p: any) => {
@@ -655,10 +719,12 @@ export function PersonDetail() {
 
   async function logInteraction(e: FormEvent) {
     e.preventDefault();
+    const notes =
+      interactionType === "QUALIFICATION_CALL" ? buildQualificationCallNotes(qualificationSections) : note;
     await api.post("/api/interactions", {
       personId: id,
       type: interactionType,
-      notes: note,
+      notes,
       jobId: interactionJobId || undefined,
       companyId: interactionCompanyId || undefined,
       // Only send followUpAt if the user actually touched it — omitting the
@@ -666,8 +732,22 @@ export function PersonDetail() {
       ...(interactionFollowUpAt ? { followUpAt: interactionFollowUpAt } : {}),
     });
     setNote("");
+    setQualificationSections({});
     setInteractionFollowUpAt("");
     load();
+  }
+
+  async function runExtractIntelligence(interactionId: string) {
+    setExtractingId(interactionId);
+    setExtractError(null);
+    try {
+      await api.post(`/api/interactions/${interactionId}/extract-intelligence`);
+      load();
+    } catch (err) {
+      setExtractError(err instanceof Error ? err.message : "Extraction failed");
+    } finally {
+      setExtractingId(null);
+    }
   }
 
   async function onToggleArchive() {
@@ -903,7 +983,11 @@ export function PersonDetail() {
             <select
               className="rounded border px-2 py-2 text-sm"
               value={interactionType}
-              onChange={(e) => setInteractionType(e.target.value)}
+              onChange={(e) => {
+                setInteractionType(e.target.value);
+                setNote("");
+                setQualificationSections({});
+              }}
             >
               {INTERACTION_TYPE_OPTIONS.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -936,13 +1020,31 @@ export function PersonDetail() {
               ))}
             </select>
           </div>
-          <textarea
-            className="w-full rounded border px-3 py-2 text-sm"
-            placeholder="Notes — press Enter for a new line, click Log to save"
-            rows={5}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
+          {interactionType === "QUALIFICATION_CALL" ? (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {QUALIFICATION_CALL_SECTIONS.map((s) => (
+                <label key={s.key} className="block text-sm">
+                  <span className="mb-0.5 block text-xs font-medium uppercase text-slate-500">{s.label}</span>
+                  <span className="mb-1 block text-xs text-slate-400">{s.hint}</span>
+                  <textarea
+                    className="w-full rounded border px-3 py-2 text-sm"
+                    placeholder="Leave blank if it didn't come up"
+                    rows={3}
+                    value={qualificationSections[s.key] ?? ""}
+                    onChange={(e) => setQualificationSections((prev) => ({ ...prev, [s.key]: e.target.value }))}
+                  />
+                </label>
+              ))}
+            </div>
+          ) : (
+            <textarea
+              className="w-full rounded border px-3 py-2 text-sm"
+              placeholder="Notes — press Enter for a new line, click Log to save"
+              rows={5}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          )}
           <div className="flex items-center justify-between">
             <label className="flex items-center gap-1.5 text-sm text-slate-600">
               Remind me to follow up on
@@ -963,6 +1065,7 @@ export function PersonDetail() {
           Interaction history
           {person.linkedPerson && <span className="ml-1 text-xs font-normal text-slate-400">(combined with linked record)</span>}
         </h2>
+        {extractError && <p className="mb-2 text-sm text-red-600">{extractError}</p>}
         <ul className="space-y-1 text-sm">
           {(person.combinedInteractions ?? person.interactions)?.map((i: any) => (
             <li key={i.id} className="rounded border bg-white p-2">
@@ -972,6 +1075,23 @@ export function PersonDetail() {
                 <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
                   via {fullName(person.linkedPerson)}
                 </span>
+              )}
+              {i.notes?.trim() && (
+                <div>
+                  {i.intelligence && <IntelligenceSummary intelligence={i.intelligence} />}
+                  <button
+                    type="button"
+                    disabled={extractingId === i.id}
+                    onClick={() => runExtractIntelligence(i.id)}
+                    className="mt-1 text-xs text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    {extractingId === i.id
+                      ? "Extracting..."
+                      : i.intelligence
+                        ? "Re-extract intelligence"
+                        : "Extract Intelligence"}
+                  </button>
+                </div>
               )}
             </li>
           ))}

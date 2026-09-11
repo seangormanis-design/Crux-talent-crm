@@ -34,6 +34,7 @@ services:
       STORAGE_DRIVER: local
       STORAGE_LOCAL_PATH: /app/storage
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "${BACKEND_PORT:-4000}:4000"
     volumes:
