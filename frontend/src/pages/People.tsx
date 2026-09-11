@@ -537,6 +537,7 @@ export function PersonDetail() {
   const [interactionFollowUpAt, setInteractionFollowUpAt] = useState("");
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showPromoteForm, setShowPromoteForm] = useState(false);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [reflectingId, setReflectingId] = useState<string | null>(null);
@@ -688,12 +689,22 @@ export function PersonDetail() {
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setShowLinkModal(true)}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
-        >
-          Link to existing {linkTargetType === "CANDIDATE" ? "candidate" : "client contact"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowLinkModal(true)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            Link to existing {linkTargetType === "CANDIDATE" ? "candidate" : "client contact"}
+          </button>
+          {person.personType === "CANDIDATE" && !showPromoteForm && (
+            <button
+              onClick={() => setShowPromoteForm(true)}
+              className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+            >
+              This person is now also a Client Contact — create linked record
+            </button>
+          )}
+        </div>
       )}
 
       {showLinkModal && (
@@ -706,6 +717,38 @@ export function PersonDetail() {
           }}
           onCancel={() => setShowLinkModal(false)}
         />
+      )}
+
+      {showPromoteForm && (
+        <div className="rounded border border-blue-200 bg-blue-50 p-3">
+          <p className="mb-2 text-sm text-blue-900">
+            Creating a linked Client Contact record for {fullName(person)} — the two records will be connected
+            automatically on save.
+          </p>
+          <PersonCreateForm
+            personType="CLIENT_CONTACT"
+            initialValues={{
+              firstName: person.firstName,
+              surname: person.surname ?? "",
+              workEmail: person.workEmail ?? "",
+              personalEmail: person.personalEmail ?? "",
+              phone: person.phone ?? "",
+              linkedinUrl: person.linkedinUrl ?? "",
+            }}
+            linkedPersonId={person.id}
+            onCreated={() => {
+              setShowPromoteForm(false);
+              load();
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPromoteForm(false)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            Cancel
+          </button>
+        </div>
       )}
 
       <div className="flex items-start justify-between">

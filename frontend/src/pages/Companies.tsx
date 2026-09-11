@@ -382,6 +382,7 @@ export function CompanyDetail() {
           <ul className="space-y-1">
             {sortedContacts.map((p: any) => {
               const lastInteraction = p.interactions?.[0]?.occurredAt;
+              const linked = linkedRecordOf(p);
               return (
                 <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
                   <span>
@@ -389,6 +390,11 @@ export function CompanyDetail() {
                       {fullName(p)}
                     </Link>{" "}
                     {p.jobTitle && <span className="text-slate-500">— {p.jobTitle}</span>}
+                    {linked && linked.personType === "CANDIDATE" && (
+                      <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
+                        Also linked as Candidate
+                      </span>
+                    )}
                   </span>
                   <span className="text-xs text-slate-400">
                     {lastInteraction ? `Last contacted ${new Date(lastInteraction).toLocaleDateString()}` : "No interactions yet"}
@@ -413,6 +419,7 @@ export function CompanyDetail() {
           <ul className="space-y-1">
             {sortedCandidates.map((p: any) => {
               const lastInteraction = p.interactions?.[0]?.occurredAt;
+              const linked = linkedRecordOf(p);
               return (
                 <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
                   <span>
@@ -420,6 +427,11 @@ export function CompanyDetail() {
                       {fullName(p)}
                     </Link>{" "}
                     {p.currentTitle && <span className="text-slate-500">— {p.currentTitle}</span>}
+                    {linked && linked.personType === "CLIENT_CONTACT" && (
+                      <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
+                        Also linked as Client Contact
+                      </span>
+                    )}
                   </span>
                   <span className="text-xs text-slate-400">
                     {lastInteraction ? `Last contacted ${new Date(lastInteraction).toLocaleDateString()}` : "No interactions yet"}
@@ -608,6 +620,13 @@ export function CompanyDetail() {
       </section>
     </div>
   );
+}
+
+// The linked-record feature stores a single directed edge, so the other
+// side could be on either `linkedPerson` or `linkedFrom` depending on which
+// record initiated the link.
+function linkedRecordOf(p: any): { id: string; personType: string } | null {
+  return p.linkedPerson ?? p.linkedFrom?.[0] ?? null;
 }
 
 // Most-recently-interacted-with first; never-contacted last.

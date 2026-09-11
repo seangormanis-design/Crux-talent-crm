@@ -8,27 +8,47 @@ interface CreatedPerson {
   id: string;
 }
 
+interface InitialValues {
+  firstName?: string;
+  surname?: string;
+  workEmail?: string;
+  personalEmail?: string;
+  phone?: string;
+  linkedinUrl?: string;
+}
+
 // The single, full Candidate/Client Contact creation form — used both on
 // the People page and anywhere else a new person needs creating (e.g. from
-// a Company's Contacts section, with the company pre-filled). There must
-// only ever be this one form; a page that wants a person created from a
-// different starting point should pass initialCompany, not build its own
-// simplified version.
+// a Company's Contacts section, with the company pre-filled, or from a
+// Candidate's page when promoting them to also be a Client Contact). There
+// must only ever be this one form; a page that wants a person created from
+// a different starting point should pass initialCompany/initialValues, not
+// build its own simplified version.
 export default function PersonCreateForm({
   personType,
   initialCompany = null,
+  initialValues,
+  linkedPersonId,
   onCreated,
 }: {
   personType: "CANDIDATE" | "CLIENT_CONTACT";
   initialCompany?: CompanyOption | null;
+  // Pre-fills overlapping fields (e.g. from the record this new one is
+  // being promoted/linked from) — the user can still edit before saving.
+  initialValues?: InitialValues;
+  // When set, this new record is linked to an existing one on save (the
+  // existing linked-record feature) and the duplicate-check step is
+  // skipped entirely — we already know exactly which person this is,
+  // there's nothing to detect.
+  linkedPersonId?: string;
   onCreated: (person: CreatedPerson) => void;
 }) {
-  const [firstName, setFirstName] = useState("");
-  const [surname, setSurname] = useState("");
-  const [workEmail, setWorkEmail] = useState("");
-  const [personalEmail, setPersonalEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [firstName, setFirstName] = useState(initialValues?.firstName ?? "");
+  const [surname, setSurname] = useState(initialValues?.surname ?? "");
+  const [workEmail, setWorkEmail] = useState(initialValues?.workEmail ?? "");
+  const [personalEmail, setPersonalEmail] = useState(initialValues?.personalEmail ?? "");
+  const [phone, setPhone] = useState(initialValues?.phone ?? "");
+  const [linkedinUrl, setLinkedinUrl] = useState(initialValues?.linkedinUrl ?? "");
   const [addressStreet, setAddressStreet] = useState("");
   const [addressCity, setAddressCity] = useState("");
   const [addressPostcode, setAddressPostcode] = useState("");
@@ -44,7 +64,7 @@ export default function PersonCreateForm({
     setSkillIds((prev) => (prev.includes(skillId) ? prev.filter((id) => id !== skillId) : [...prev, skillId]));
   }
 
-  async function createPerson(linkedPersonId?: string) {
+  async function createPerson(linkToPersonId?: string) {
     setCreating(true);
     try {
       const person = await api.post<CreatedPerson>("/api/people", {
@@ -69,7 +89,7 @@ export default function PersonCreateForm({
               companyId: company?.id || undefined,
               jobTitle: jobTitle || undefined,
             }),
-        linkedPersonId,
+        linkedPersonId: linkToPersonId ?? linkedPersonId,
       });
       onCreated(person);
     } finally {
@@ -79,6 +99,12 @@ export default function PersonCreateForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (linkedPersonId) {
+      // Already know exactly which existing person this links to — no
+      // duplicate to detect.
+      await createPerson();
+      return;
+    }
     const { matches } = await api.post<{ matches: any[] }>("/api/people/check-duplicates", {
       firstName,
       surname: surname || undefined,

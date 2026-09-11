@@ -56,14 +56,25 @@ companiesRouter.get("/:id", async (req, res) => {
       // latest one).
       contacts: {
         where: { deletedAt: null },
-        include: { interactions: { orderBy: { occurredAt: "desc" } } },
+        include: {
+          interactions: { orderBy: { occurredAt: "desc" } },
+          // So the frontend can flag "also linked as Candidate" — this
+          // person may be the same real human as one of the entries in
+          // `employeesAt` below, via the existing linked-record feature.
+          linkedPerson: { select: { id: true, personType: true } },
+          linkedFrom: { select: { id: true, personType: true } },
+        },
       },
       // Our own Candidates who currently work here — distinct from
       // `contacts` (Client Contacts we know in a client capacity at this
       // company). A person could in principle appear on both sides.
       employeesAt: {
         where: { personType: "CANDIDATE", deletedAt: null },
-        include: { interactions: { orderBy: { occurredAt: "desc" } } },
+        include: {
+          interactions: { orderBy: { occurredAt: "desc" } },
+          linkedPerson: { select: { id: true, personType: true } },
+          linkedFrom: { select: { id: true, personType: true } },
+        },
       },
       jobs: { include: { placement: true }, orderBy: { createdAt: "desc" } },
       placements: { include: { candidate: true, job: true }, orderBy: { startDate: "desc" } },
