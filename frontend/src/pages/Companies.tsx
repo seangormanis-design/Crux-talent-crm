@@ -132,7 +132,7 @@ export function CompaniesList() {
   );
 }
 
-const COMPANY_TABS = ["Contacts", "Jobs", "Placements", "Interactions"] as const;
+const COMPANY_TABS = ["Contacts", "Candidates", "Jobs", "Placements", "Interactions"] as const;
 type CompanyTab = (typeof COMPANY_TABS)[number];
 
 export function CompanyDetail() {
@@ -176,14 +176,12 @@ export function CompanyDetail() {
 
   const sortedContacts = useMemo(() => {
     const contacts = company?.contacts ?? [];
-    return [...contacts].sort((a: any, b: any) => {
-      const aDate = a.interactions?.[0]?.occurredAt;
-      const bDate = b.interactions?.[0]?.occurredAt;
-      if (!aDate && !bDate) return 0;
-      if (!aDate) return 1;
-      if (!bDate) return -1;
-      return new Date(bDate).getTime() - new Date(aDate).getTime();
-    });
+    return [...contacts].sort(byLastInteractionDesc);
+  }, [company]);
+
+  const sortedCandidates = useMemo(() => {
+    const candidates = company?.employeesAt ?? [];
+    return [...candidates].sort(byLastInteractionDesc);
   }, [company]);
 
   const placements = company?.placements ?? [];
@@ -262,6 +260,7 @@ export function CompanyDetail() {
             >
               {tab}
               {tab === "Contacts" && sortedContacts.length > 0 && ` (${sortedContacts.length})`}
+              {tab === "Candidates" && sortedCandidates.length > 0 && ` (${sortedCandidates.length})`}
               {tab === "Jobs" && activeJobs.length + closedJobs.length > 0 && ` (${activeJobs.length + closedJobs.length})`}
               {tab === "Placements" && placements.length > 0 && ` (${placements.length})`}
               {tab === "Interactions" && company.interactions?.length > 0 && ` (${company.interactions.length})`}
@@ -398,6 +397,37 @@ export function CompanyDetail() {
               );
             })}
             {!sortedContacts.length && <li className="text-slate-400">No contacts linked yet</li>}
+          </ul>
+        </section>
+      )}
+
+      {activeTab === "Candidates" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <div className="mb-2">
+            <h2 className="font-medium">Candidates here</h2>
+            <p className="text-xs text-slate-500">
+              Our own candidates who currently work at this company — distinct from Contacts, who we know in a client
+              capacity.
+            </p>
+          </div>
+          <ul className="space-y-1">
+            {sortedCandidates.map((p: any) => {
+              const lastInteraction = p.interactions?.[0]?.occurredAt;
+              return (
+                <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
+                  <span>
+                    <Link to={`/people/${p.id}`} className="text-blue-600">
+                      {fullName(p)}
+                    </Link>{" "}
+                    {p.currentTitle && <span className="text-slate-500">— {p.currentTitle}</span>}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {lastInteraction ? `Last contacted ${new Date(lastInteraction).toLocaleDateString()}` : "No interactions yet"}
+                  </span>
+                </li>
+              );
+            })}
+            {!sortedCandidates.length && <li className="text-slate-400">No candidates work here currently</li>}
           </ul>
         </section>
       )}
@@ -578,6 +608,16 @@ export function CompanyDetail() {
       </section>
     </div>
   );
+}
+
+// Most-recently-interacted-with first; never-contacted last.
+function byLastInteractionDesc(a: any, b: any): number {
+  const aDate = a.interactions?.[0]?.occurredAt;
+  const bDate = b.interactions?.[0]?.occurredAt;
+  if (!aDate && !bDate) return 0;
+  if (!aDate) return 1;
+  if (!bDate) return -1;
+  return new Date(bDate).getTime() - new Date(aDate).getTime();
 }
 
 function JobRow({ job }: { job: any }) {

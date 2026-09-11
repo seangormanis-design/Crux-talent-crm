@@ -58,6 +58,13 @@ companiesRouter.get("/:id", async (req, res) => {
         where: { deletedAt: null },
         include: { interactions: { orderBy: { occurredAt: "desc" } } },
       },
+      // Our own Candidates who currently work here — distinct from
+      // `contacts` (Client Contacts we know in a client capacity at this
+      // company). A person could in principle appear on both sides.
+      employeesAt: {
+        where: { personType: "CANDIDATE", deletedAt: null },
+        include: { interactions: { orderBy: { occurredAt: "desc" } } },
+      },
       jobs: { include: { placement: true }, orderBy: { createdAt: "desc" } },
       placements: { include: { candidate: true, job: true }, orderBy: { startDate: "desc" } },
       documents: { include: { versions: true } },
