@@ -11,6 +11,7 @@ import ReflectionPanel from "../components/ReflectionPanel";
 import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import PersonCreateForm from "../components/PersonCreateForm";
+import CompanyPicker, { CompanyOption } from "../components/CompanyPicker";
 import { fullName } from "../lib/personName";
 
 interface Person {
@@ -553,7 +554,7 @@ export function PersonDetail() {
     });
   }
 
-  async function saveField(field: string, value: string) {
+  async function saveField(field: string, value: string | null) {
     await api.patch(`/api/people/${id}`, { [field]: value });
     load();
   }
@@ -746,16 +747,12 @@ export function PersonDetail() {
       <section className="rounded border bg-white p-4 text-sm">
           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
             <DetailRow label={person.personType === "CANDIDATE" ? "Current employer" : "Company"}>
-              {(person.personType === "CANDIDATE" ? person.currentEmployer : person.company) ? (
-                <Link
-                  to={`/companies/${(person.personType === "CANDIDATE" ? person.currentEmployer : person.company).id}`}
-                  className="inline-block rounded px-2 py-1 text-blue-600 hover:bg-slate-100"
-                >
-                  {(person.personType === "CANDIDATE" ? person.currentEmployer : person.company).name}
-                </Link>
-              ) : (
-                <span className="px-2 py-1 text-slate-400">Not set</span>
-              )}
+              <CompanyLinkField
+                company={person.personType === "CANDIDATE" ? person.currentEmployer ?? null : person.company ?? null}
+                onSave={(companyId) =>
+                  saveField(person.personType === "CANDIDATE" ? "currentEmployerId" : "companyId", companyId)
+                }
+              />
             </DetailRow>
             <DetailRow label="Work email">
               <InlineField
@@ -1185,6 +1182,92 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
     <div>
       <dt className="text-xs uppercase text-slate-500">{label}</dt>
       <dd>{children}</dd>
+    </div>
+  );
+}
+
+// Same click-to-edit convention as InlineField, but for a Company link:
+// display mode keeps the existing hyperlink to the company's own page,
+// with a separate small "Edit" affordance that swaps in a CompanyPicker
+// (searchable, with create-new-on-the-fly) rather than the link itself
+// entering edit mode — clicking the company name should still navigate.
+function CompanyLinkField({
+  company,
+  onSave,
+}: {
+  company: CompanyOption | null;
+  onSave: (companyId: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<CompanyOption | null>(company);
+
+  useEffect(() => {
+    if (!editing) setDraft(company);
+  }, [company, editing]);
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <div className="flex-1">
+          <CompanyPicker
+            value={draft}
+            onChange={(c) => {
+              setDraft(c);
+              // CompanyPicker also fires onChange(null) the moment someone
+              // starts typing over an existing selection (it's clearing the
+              // selection to let them search again) — that's not the same
+              // as choosing to remove the company, so only an actual pick
+              // or create commits and closes; clearing needs the explicit
+              // button below.
+              if (c) {
+                onSave(c.id);
+                setEditing(false);
+              }
+            }}
+            placeholder="Search or add a new company"
+          />
+        </div>
+        {company && (
+          <button
+            type="button"
+            onClick={() => {
+              onSave(null);
+              setEditing(false);
+            }}
+            className="shrink-0 px-1 text-xs text-slate-400 hover:text-red-600"
+          >
+            Clear
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="shrink-0 px-1 text-xs text-slate-400 hover:text-slate-600"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group/field flex items-center gap-1">
+      {company ? (
+        <Link to={`/companies/${company.id}`} className="rounded px-2 py-1 text-blue-600 hover:bg-slate-100">
+          {company.name}
+        </Link>
+      ) : (
+        <button type="button" onClick={() => setEditing(true)} className="rounded px-2 py-1 text-left text-slate-400 hover:bg-slate-100">
+          Not set
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="shrink-0 px-1 text-xs text-slate-400 opacity-0 hover:text-blue-600 group-hover/field:opacity-100"
+      >
+        Edit
+      </button>
     </div>
   );
 }

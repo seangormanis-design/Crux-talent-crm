@@ -41,7 +41,7 @@ const personSchema = z.object({
   addressPostcode: optionalString,
 
   // Candidate fields
-  currentEmployerId: z.string().uuid().optional(),
+  currentEmployerId: z.string().uuid().nullable().optional(),
   // Free-text alternative to currentEmployerId — e.g. from CV parsing,
   // where we only have a company name, not an existing record's ID.
   // Resolved server-side to an existing Company or a newly created one.
@@ -59,7 +59,7 @@ const personSchema = z.object({
   roleTypeIds: z.array(z.string().uuid()).optional(),
 
   // Client contact fields
-  companyId: z.string().uuid().optional(),
+  companyId: z.string().uuid().nullable().optional(),
   jobTitle: z.string().optional(),
   decisionRole: z.enum(["HIRING_MANAGER", "PRACTICE_LEAD", "DELIVERY_DIRECTOR", "HR", "OTHER"]).optional(),
   relationshipNotes: z.string().optional(),
