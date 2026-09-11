@@ -118,9 +118,11 @@ export function JobDetail() {
   const [feeValue, setFeeValue] = useState("");
   const [placementStartDate, setPlacementStartDate] = useState("");
   const [placementError, setPlacementError] = useState<string | null>(null);
+  const [suggestedCandidates, setSuggestedCandidates] = useState<any[]>([]);
 
   function load() {
     api.get(`/api/jobs/${id}`).then(setJob);
+    api.get<any[]>(`/api/jobs/${id}/suggested-candidates`).then(setSuggestedCandidates);
   }
 
   useEffect(() => {
@@ -137,6 +139,11 @@ export function JobDetail() {
     e.preventDefault();
     await api.post("/api/pipeline", { jobId: id, candidateId });
     setCandidateId("");
+    load();
+  }
+
+  async function addSuggestedCandidate(suggestedCandidateId: string) {
+    await api.post("/api/pipeline", { jobId: id, candidateId: suggestedCandidateId });
     load();
   }
 
@@ -259,6 +266,42 @@ export function JobDetail() {
           ))}
         </ul>
       </section>
+
+      {suggestedCandidates.length > 0 && (
+        <section className="rounded border border-amber-200 bg-amber-50 p-3">
+          <h2 className="mb-1 font-medium">Previously shortlisted — may fit</h2>
+          <p className="mb-2 text-xs text-slate-500">
+            Reached Shortlisted or beyond on a past job but weren't placed, and match this role's skills, seniority,
+            or location. A suggestion to review — not added to this job's pipeline automatically.
+          </p>
+          <ul className="space-y-1 text-sm">
+            {suggestedCandidates.map((s: any) => (
+              <li key={s.candidate.id} className="flex items-center justify-between rounded border bg-white p-2">
+                <span>
+                  <Link to={`/people/${s.candidate.id}`} className="text-blue-600">
+                    {fullName(s.candidate)}
+                  </Link>
+                  {s.candidate.seniority && <span className="text-slate-500"> — {s.candidate.seniority}</span>}
+                  {s.candidate.location && <span className="text-slate-500"> · {s.candidate.location}</span>}
+                  <p className="text-xs text-slate-400">
+                    Previously shortlisted for {s.sourceJob.title} at {s.sourceJob.companyName}
+                    {s.matchingSkills.length > 0 && ` · Matches: ${s.matchingSkills.map((sk: any) => sk.name).join(", ")}`}
+                    {s.seniorityMatch && " · Seniority match"}
+                    {s.locationMatch && " · Location match"}
+                  </p>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => addSuggestedCandidate(s.candidate.id)}
+                  className="shrink-0 rounded border px-2 py-1 text-xs hover:bg-slate-100"
+                >
+                  Add to pipeline
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="rounded border bg-white p-3">
         <h2 className="mb-2 font-medium">Placement</h2>

@@ -2,6 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { AuthenticatedRequest } from "../middleware/requireAuth";
+import { recordProspectsForClosedJob } from "../lib/candidateProspects";
+
+const CLOSED_JOB_STAGES = new Set(["PLACED", "REJECTED"]);
 
 export const jobsRouter = Router();
 
@@ -83,6 +86,74 @@ jobsRouter.get("/:id", async (req, res) => {
   res.json(job);
 });
 
+// "Previously shortlisted, may fit" suggestions — candidates who reached
+// Shortlisted-or-beyond (but weren't placed) on some other job, matched
+// against this job's essential/ideal skills, level ("seniority"), and
+// location. A suggestion to review and act on, never auto-added to this
+// job's pipeline.
+jobsRouter.get("/:id/suggested-candidates", async (req, res) => {
+  const job = await prisma.job.findUnique({
+    where: { id: req.params.id },
+    include: {
+      essentialSkills: true,
+      idealSkills: true,
+      candidates: { select: { candidateId: true } },
+    },
+  });
+  if (!job) return res.status(404).json({ error: "Job not found" });
+
+  const jobSkillIds = new Set([...job.essentialSkills, ...job.idealSkills].map((s) => s.id));
+  const existingCandidateIds = job.candidates.map((c) => c.candidateId);
+
+  const prospects = await prisma.candidateProspect.findMany({
+    where: {
+      candidateId: { notIn: existingCandidateIds },
+      candidate: { archivedAt: null, deletedAt: null },
+    },
+    include: {
+      candidate: { include: { skills: { include: { skill: true } } } },
+      sourceJob: { select: { id: true, title: true, company: { select: { id: true, name: true } } } },
+    },
+    // One row per candidate — their most recent prospect entry, if they were
+    // shortlisted on more than one past job.
+    distinct: ["candidateId"],
+    orderBy: { createdAt: "desc" },
+  });
+
+  const suggestions = prospects
+    .map((p) => {
+      const matchingSkills = p.candidate.skills.map((s) => s.skill).filter((s) => jobSkillIds.has(s.id));
+      const locationMatch = !!(
+        job.location &&
+        p.candidate.location &&
+        job.location.trim().toLowerCase() === p.candidate.location.trim().toLowerCase()
+      );
+      const seniorityMatch = !!(
+        job.level &&
+        p.candidate.seniority &&
+        job.level.trim().toLowerCase() === p.candidate.seniority.trim().toLowerCase()
+      );
+      return {
+        candidate: {
+          id: p.candidate.id,
+          firstName: p.candidate.firstName,
+          surname: p.candidate.surname,
+          seniority: p.candidate.seniority,
+          location: p.candidate.location,
+        },
+        matchingSkills: matchingSkills.map((s) => ({ id: s.id, name: s.name })),
+        locationMatch,
+        seniorityMatch,
+        reachedStage: p.reachedStage,
+        sourceJob: { id: p.sourceJob.id, title: p.sourceJob.title, companyName: p.sourceJob.company.name },
+      };
+    })
+    .filter((s) => s.matchingSkills.length > 0 || s.locationMatch || s.seniorityMatch)
+    .sort((a, b) => b.matchingSkills.length - a.matchingSkills.length);
+
+  res.json(suggestions);
+});
+
 jobsRouter.post("/", async (req, res) => {
   const parsed = jobSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -133,9 +204,9 @@ jobsRouter.post("/:id/stage", async (req: AuthenticatedRequest, res) => {
   const current = await prisma.job.findUnique({ where: { id: req.params.id } });
   if (!current) return res.status(404).json({ error: "Job not found" });
 
-  const [job] = await prisma.$transaction([
-    prisma.job.update({ where: { id: req.params.id }, data: { stage: parsed.data.stage } }),
-    prisma.stageChange.create({
+  const job = await prisma.$transaction(async (tx) => {
+    const updated = await tx.job.update({ where: { id: req.params.id }, data: { stage: parsed.data.stage } });
+    await tx.stageChange.create({
       data: {
         jobId: req.params.id,
         fromStage: current.stage,
@@ -143,8 +214,15 @@ jobsRouter.post("/:id/stage", async (req: AuthenticatedRequest, res) => {
         note: parsed.data.note,
         changedById: req.userId,
       },
-    }),
-  ]);
+    });
+
+    if (CLOSED_JOB_STAGES.has(parsed.data.stage)) {
+      const placement = await tx.placement.findUnique({ where: { jobId: req.params.id } });
+      await recordProspectsForClosedJob(tx, req.params.id, current.companyId, placement?.candidateId);
+    }
+
+    return updated;
+  });
 
   res.json(job);
 });

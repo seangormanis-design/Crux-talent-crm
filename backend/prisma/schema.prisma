@@ -73,6 +73,7 @@ model Company {
   interactions Interaction[]
   tags         TagLink[]
   placements   Placement[]
+  candidateProspects CandidateProspect[]
 
   @@map("companies")
 }
@@ -183,6 +184,7 @@ model Person {
   ownedJobs         Job[]         @relation("JobOwningContact")
   placements        Placement[]   @relation("PlacementCandidate")
   tags              TagLink[]
+  prospectEntries   CandidateProspect[] @relation("ProspectCandidate")
 
   @@map("people")
   @@index([personType])
@@ -295,6 +297,7 @@ model Job {
   stageChanges StageChange[]
   placement    Placement?
   tags         TagLink[]
+  candidateProspects CandidateProspect[]
 
   @@map("jobs")
   @@index([companyId])
@@ -347,6 +350,29 @@ model StageChange {
   @@map("stage_changes")
   @@index([jobId])
   @@index([jobCandidateId])
+}
+
+// Preserves shortlisting history once a Job closes (Placed or Lost/Rejected)
+// so it isn't buried inside a closed job — one row per candidate who reached
+// Shortlisted-or-beyond on that job but wasn't the eventual placement.
+// Surfaced as "previously shortlisted, may fit" suggestions on future jobs
+// with matching skills/seniority/location.
+model CandidateProspect {
+  id          String   @id @default(uuid())
+  candidateId String
+  candidate   Person   @relation("ProspectCandidate", fields: [candidateId], references: [id], onDelete: Cascade)
+  sourceJobId String
+  sourceJob   Job      @relation(fields: [sourceJobId], references: [id], onDelete: Cascade)
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  // The furthest stage they reached on that job before it closed.
+  reachedStage CandidateStage
+
+  createdAt DateTime @default(now())
+
+  @@unique([candidateId, sourceJobId])
+  @@map("candidate_prospects")
+  @@index([candidateId])
 }
 
 // ─────────────────────────────────────────────────────────────

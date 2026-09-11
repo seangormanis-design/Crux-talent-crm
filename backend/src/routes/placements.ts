@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { nullableDate } from "../lib/zodHelpers";
+import { recordProspectsForClosedJob } from "../lib/candidateProspects";
 
 export const placementsRouter = Router();
 
@@ -41,10 +42,12 @@ placementsRouter.post("/", async (req, res) => {
     companyId = job.companyId;
   }
 
-  const [placement] = await prisma.$transaction([
-    prisma.placement.create({ data: { ...parsed.data, companyId } }),
-    prisma.job.update({ where: { id: parsed.data.jobId }, data: { stage: "PLACED" } }),
-  ]);
+  const placement = await prisma.$transaction(async (tx) => {
+    const created = await tx.placement.create({ data: { ...parsed.data, companyId } });
+    await tx.job.update({ where: { id: parsed.data.jobId }, data: { stage: "PLACED" } });
+    await recordProspectsForClosedJob(tx, parsed.data.jobId, companyId!, parsed.data.candidateId);
+    return created;
+  });
 
   res.status(201).json(placement);
 });
