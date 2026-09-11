@@ -215,7 +215,7 @@ export function CompanyDetail() {
     return entries.sort((a: any, b: any) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
   }, [company]);
 
-  const ACTIVITY_PREVIEW_COUNT = 7;
+  const ACTIVITY_PREVIEW_COUNT = 10;
   const visibleActivity = showAllActivity ? combinedContactActivity : combinedContactActivity.slice(0, ACTIVITY_PREVIEW_COUNT);
 
   if (!company) return <p>Loading...</p>;
@@ -326,20 +326,37 @@ export function CompanyDetail() {
             </button>
           )}
         </div>
-        <ul className="space-y-1">
-          {visibleActivity.map((i: any) => (
-            <li key={i.id} className="flex items-center justify-between rounded border px-2 py-1.5">
-              <span>
-                <Link to={`/people/${i.contact.id}`} className="text-blue-600">
-                  {fullName(i.contact)}
-                </Link>{" "}
-                <span className="text-slate-500">— {i.type.replaceAll("_", " ")}</span>
-              </span>
-              <span className="text-xs text-slate-400">{new Date(i.occurredAt).toLocaleDateString()}</span>
-            </li>
-          ))}
-          {!combinedContactActivity.length && <li className="text-slate-400">No contact activity yet</li>}
-        </ul>
+        <div className="overflow-x-auto rounded border">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-100 text-left">
+              <tr>
+                <th className="px-2 py-1.5">Contact</th>
+                <th className="px-2 py-1.5">Type</th>
+                <th className="px-2 py-1.5">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleActivity.map((i: any) => (
+                <tr key={i.id} className="border-t">
+                  <td className="px-2 py-1.5">
+                    <Link to={`/people/${i.contact.id}`} className="text-blue-600">
+                      {fullName(i.contact)}
+                    </Link>
+                  </td>
+                  <td className="px-2 py-1.5 text-slate-500">{i.type.replaceAll("_", " ")}</td>
+                  <td className="px-2 py-1.5 text-xs text-slate-400">{new Date(i.occurredAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+              {!combinedContactActivity.length && (
+                <tr>
+                  <td colSpan={3} className="px-2 py-3 text-center text-slate-400">
+                    No contact activity yet
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {activeTab === "Contacts" && (
