@@ -189,6 +189,21 @@ export function CompanyDetail() {
   const placements = company?.placements ?? [];
   const totalPlacementFees = placements.reduce((sum: number, p: any) => sum + Number(p.feeValue || 0), 0);
 
+  // Derived fresh from `placements` on every render — no stored/cached
+  // aggregate to fall out of sync as placements are added or edited.
+  const placementsByYear = useMemo(() => {
+    const byYear = new Map<number, { count: number; total: number }>();
+    for (const p of placements) {
+      const year = new Date(p.startDate).getFullYear();
+      const entry = byYear.get(year) ?? { count: 0, total: 0 };
+      entry.count += 1;
+      entry.total += Number(p.feeValue || 0);
+      byYear.set(year, entry);
+    }
+    return [...byYear.entries()].sort((a, b) => b[0] - a[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company]);
+
   // Every interaction logged against any Contact linked to this company,
   // combined into one feed — distinct from the Interactions tab, which only
   // shows interactions logged directly against the Company itself.
@@ -424,17 +439,64 @@ export function CompanyDetail() {
 
       {activeTab === "Placements" && (
         <section className="rounded border bg-white p-3 text-sm">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="font-medium">Placements</h2>
-            {placements.length > 0 && (
-              <p className="text-xs text-slate-500">
-                Total fees:{" "}
-                <span className="font-medium text-slate-700">
-                  {totalPlacementFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </p>
-            )}
-          </div>
+          <h2 className="mb-2 font-medium">Placements</h2>
+
+          {placements.length > 0 && (
+            <div className="mb-3 rounded border bg-slate-50 p-3">
+              <dl className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <dt className="text-xs uppercase text-slate-500">Placements</dt>
+                  <dd className="text-lg font-medium text-slate-800">{placements.length}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase text-slate-500">Total fees</dt>
+                  <dd className="text-lg font-medium text-slate-800">
+                    {totalPlacementFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase text-slate-500">Average fee</dt>
+                  <dd className="text-lg font-medium text-slate-800">
+                    {(totalPlacementFees / placements.length).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </dd>
+                </div>
+              </dl>
+
+              {placementsByYear.length > 1 && (
+                <table className="mt-3 w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-slate-500">
+                      <th className="py-1 pr-3">Year</th>
+                      <th className="py-1 pr-3">Placements</th>
+                      <th className="py-1 pr-3">Total fees</th>
+                      <th className="py-1 pr-3">Average fee</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {placementsByYear.map(([year, stats]) => (
+                      <tr key={year} className="border-t border-slate-200">
+                        <td className="py-1 pr-3">{year}</td>
+                        <td className="py-1 pr-3">{stats.count}</td>
+                        <td className="py-1 pr-3">
+                          {stats.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-1 pr-3">
+                          {(stats.total / stats.count).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
           <ul className="space-y-1">
             {placements.map((p: any) => (
               <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
