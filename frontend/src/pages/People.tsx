@@ -11,6 +11,7 @@ import LinkPersonModal from "../components/LinkPersonModal";
 import ReflectionPanel from "../components/ReflectionPanel";
 import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
+import CompanyPicker, { CompanyOption } from "../components/CompanyPicker";
 import { fullName } from "../lib/personName";
 
 interface Person {
@@ -177,6 +178,7 @@ export function PeopleList() {
   const [seniority, setSeniority] = useState("");
   const [newLocation, setNewLocation] = useState("");
   const [newSkillIds, setNewSkillIds] = useState<string[]>([]);
+  const [newCompany, setNewCompany] = useState<CompanyOption | null>(null);
   const [newType, setNewType] = useState<"CANDIDATE" | "CLIENT_CONTACT">("CANDIDATE");
   const [duplicateMatches, setDuplicateMatches] = useState<any[] | null>(null);
   const navigate = useNavigate();
@@ -260,6 +262,7 @@ export function PeopleList() {
     setSeniority("");
     setNewLocation("");
     setNewSkillIds([]);
+    setNewCompany(null);
     setShowForm(false);
     setDuplicateMatches(null);
   }
@@ -285,8 +288,11 @@ export function PeopleList() {
             seniority: seniority || undefined,
             location: newLocation || undefined,
             skillIds: newSkillIds.length ? newSkillIds : undefined,
+            currentEmployerId: newCompany?.id || undefined,
           }
-        : {}),
+        : {
+            companyId: newCompany?.id || undefined,
+          }),
       linkedPersonId,
     });
     resetCreateForm();
@@ -329,7 +335,14 @@ export function PeopleList() {
       {showForm && (
         <form onSubmit={onCreate} className="mb-4 space-y-4 rounded border bg-white p-3">
           <div className="flex gap-2">
-            <select className="rounded border px-2 py-2 text-sm" value={newType} onChange={(e) => setNewType(e.target.value as any)}>
+            <select
+              className="rounded border px-2 py-2 text-sm"
+              value={newType}
+              onChange={(e) => {
+                setNewType(e.target.value as any);
+                setNewCompany(null);
+              }}
+            >
               <option value="CANDIDATE">Candidate</option>
               <option value="CLIENT_CONTACT">Client contact</option>
             </select>
@@ -415,9 +428,23 @@ export function PeopleList() {
                   value={newLocation}
                   onChange={(e) => setNewLocation(e.target.value)}
                 />
+                <div className="flex-1">
+                  <CompanyPicker
+                    value={newCompany}
+                    onChange={setNewCompany}
+                    placeholder="Current employer — search or add new"
+                  />
+                </div>
               </div>
               <p className="mb-1 text-xs text-slate-500">Skills (optional — mark primary/secondary later on their record)</p>
               <SkillPicker mode="draft" selectedSkillIds={newSkillIds} onToggle={toggleNewSkill} />
+            </div>
+          )}
+
+          {newType === "CLIENT_CONTACT" && (
+            <div>
+              <p className="mb-1.5 text-xs font-medium uppercase text-slate-400">Company</p>
+              <CompanyPicker value={newCompany} onChange={setNewCompany} placeholder="Search or add a new company" />
             </div>
           )}
 
