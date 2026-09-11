@@ -283,16 +283,6 @@ export function CompanyDetail() {
 
       {company.notes && <p className="rounded border bg-white p-3 text-sm">{company.notes}</p>}
 
-      <section className="rounded border bg-white p-3 text-sm">
-        <h2 className="mb-2 font-medium">Tags</h2>
-        <TagPicker taggableType="COMPANY" taggableId={company.id} attachedLinks={company.tags ?? []} onChange={load} />
-      </section>
-
-      <section className="rounded border bg-white p-3 text-sm">
-        <h2 className="mb-2 font-medium">Custom fields</h2>
-        <CustomFieldsPanel taggableType="COMPANY" taggableId={company.id} />
-      </section>
-
       {activeTab === "Contacts" && (
         <section className="rounded border bg-white p-3 text-sm">
           <div className="mb-2 flex items-center justify-between">
@@ -441,6 +431,16 @@ export function CompanyDetail() {
           </ul>
         </section>
       )}
+
+      <section className="rounded border bg-white p-3 text-sm">
+        <h2 className="mb-2 font-medium">Tags</h2>
+        <TagPicker taggableType="COMPANY" taggableId={company.id} attachedLinks={company.tags ?? []} onChange={load} />
+      </section>
+
+      <section className="rounded border bg-white p-3 text-sm">
+        <h2 className="mb-2 font-medium">Custom fields</h2>
+        <CustomFieldsPanel taggableType="COMPANY" taggableId={company.id} />
+      </section>
     </div>
   );
 }
