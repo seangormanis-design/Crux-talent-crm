@@ -63,6 +63,7 @@ export default function DocumentPreviewPanel({
   const [preview, setPreview] = useState<PreviewState>({ kind: "none" });
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   // Keep the selection valid as the version list changes underneath us
   // (e.g. after a fresh upload) — default to the newest version whenever
@@ -115,6 +116,11 @@ export default function DocumentPreviewPanel({
   }, [selectedVersionId]);
 
   async function onUpload(file: File) {
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith(".pdf") && !lower.endsWith(".docx")) {
+      setUploadError("Only PDF and Word (.docx) files are supported.");
+      return;
+    }
     if (onFileSelected) {
       onFileSelected(file);
       return;
@@ -145,7 +151,20 @@ export default function DocumentPreviewPanel({
   }
 
   return (
-    <section className="rounded border bg-white p-4">
+    <section
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const dropped = e.dataTransfer.files?.[0];
+        if (dropped) onUpload(dropped);
+      }}
+      className={`rounded border bg-white p-4 transition-colors ${dragging ? "border-slate-900 bg-slate-50" : ""}`}
+    >
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-medium">{label}</h2>
         <label className="cursor-pointer rounded border px-2 py-1 text-xs hover:bg-slate-100">
@@ -165,7 +184,7 @@ export default function DocumentPreviewPanel({
 
       {!doc ? (
         <p className="rounded border border-dashed p-6 text-center text-sm text-slate-400">
-          No {label.toLowerCase()} uploaded yet.
+          No {label.toLowerCase()} uploaded yet — drag one in, or use the button above.
         </p>
       ) : (
         <>
