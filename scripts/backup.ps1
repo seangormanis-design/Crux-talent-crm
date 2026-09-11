@@ -1,15 +1,18 @@
 # Crux Talent CRM — automated Postgres backup.
 # Runs a pg_dump of the crux-postgres Docker container to a timestamped .sql
-# file, then prunes old backups: keep every run for BACKUP_RETENTION_DAYS,
-# collapse anything older to one backup per day.
+# file in $BackupDir (local), then copies that same file to $CloudBackupDir
+# (Google Drive) for an off-machine copy, then prunes old local backups:
+# keep every run for BACKUP_RETENTION_DAYS, collapse anything older to one
+# backup per day. The cloud copy is best-effort — if Google Drive isn't
+# mounted/running when this runs, the local backup still succeeds and a
+# warning is written rather than failing the whole run.
 #
 # Intended to be run every 4 hours by a Windows Scheduled Task
-# (see register-backup-task.ps1) — the backup folder lives inside this
-# project's OneDrive-synced directory, so every backup also syncs to
-# Sean's personal OneDrive automatically, with no manual step.
+# (see register-backup-task.ps1).
 
 param(
   [string]$BackupDir = (Join-Path $PSScriptRoot "..\backups"),
+  [string]$CloudBackupDir = "G:\My Drive\CRUX",
   [string]$ContainerName = "crux-postgres",
   [string]$DbUser = "crux",
   [string]$DbName = "crux_crm",
@@ -28,6 +31,7 @@ if (Test-Path $envFile) {
         "POSTGRES_DB" { $DbName = $matches[2] }
         "POSTGRES_PASSWORD" { $DbPassword = $matches[2] }
         "BACKUP_RETENTION_DAYS" { $RetentionDays = [int]$matches[2] }
+        "BACKUP_CLOUD_DIR" { $CloudBackupDir = $matches[2] }
       }
     }
   }
@@ -60,6 +64,22 @@ if ($dumpExitCode -ne 0 -or -not (Test-Path $backupFile) -or (Get-Item $backupFi
 
 $sizeKb = [math]::Round((Get-Item $backupFile).Length / 1KB, 1)
 Write-Output "Backup written: $backupFile ($sizeKb KB)"
+
+# Off-machine copy: best-effort, since Google Drive may not be mounted at
+# every 4-hourly run (e.g. not yet started after login) — a missing/failed
+# cloud copy is logged loudly but never fails the run, since the local
+# backup above already succeeded and is what retention/restore rely on.
+try {
+  if (Test-Path (Split-Path $CloudBackupDir -Parent)) {
+    New-Item -ItemType Directory -Force -Path $CloudBackupDir | Out-Null
+    Copy-Item -Path $backupFile -Destination $CloudBackupDir -Force
+    Write-Output "Copied to cloud: $(Join-Path $CloudBackupDir (Split-Path $backupFile -Leaf))"
+  } else {
+    Write-Warning "Cloud backup skipped: '$CloudBackupDir' isn't reachable (is Google Drive running?)."
+  }
+} catch {
+  Write-Warning "Cloud backup copy failed: $($_.Exception.Message)"
+}
 
 # Retention: keep every 4-hourly backup for the last $RetentionDays days;
 # beyond that, keep only the earliest backup of each day.
