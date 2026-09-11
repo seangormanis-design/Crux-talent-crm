@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import DuplicateWarningModal from "../components/DuplicateWarningModal";
-import CvParsePanel from "../components/CvParsePanel";
+import CvReviewPanel from "../components/CvReviewPanel";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 import InlineField from "../components/InlineField";
 import SkillPicker from "../components/SkillPicker";
@@ -700,6 +700,7 @@ export function PersonDetail() {
   const [reflectError, setReflectError] = useState<string | null>(null);
   const [confirmingAnonymize, setConfirmingAnonymize] = useState(false);
   const [anonymizing, setAnonymizing] = useState(false);
+  const [pendingCvFile, setPendingCvFile] = useState<File | null>(null);
 
   function load() {
     api.get(`/api/people/${id}`).then((p: any) => {
@@ -1285,18 +1286,31 @@ export function PersonDetail() {
 
       {person.personType === "CANDIDATE" && (
         <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
-          <DocumentPreviewPanel
-            label="CV"
-            documentType="CANDIDATE_CV"
-            documents={person.documents ?? []}
-            personId={person.id}
-            onChange={load}
-          />
-          <CvParsePanel
-            personId={person.id}
-            existingSkills={person.skills?.map((s: any) => s.skill) ?? []}
-            onSaved={load}
-          />
+          {pendingCvFile ? (
+            <section className="rounded border bg-white p-4">
+              <h2 className="mb-2 font-medium">CV</h2>
+              <CvReviewPanel
+                file={pendingCvFile}
+                personId={person.id}
+                existingDocId={person.documents?.find((d: any) => d.type === "CANDIDATE_CV")?.id}
+                existingSkills={person.skills?.map((s: any) => s.skill) ?? []}
+                onDone={() => {
+                  setPendingCvFile(null);
+                  load();
+                }}
+                onCancel={() => setPendingCvFile(null)}
+              />
+            </section>
+          ) : (
+            <DocumentPreviewPanel
+              label="CV"
+              documentType="CANDIDATE_CV"
+              documents={person.documents ?? []}
+              personId={person.id}
+              onChange={load}
+              onFileSelected={setPendingCvFile}
+            />
+          )}
         </div>
       )}
       </div>

@@ -41,6 +41,7 @@ export default function DocumentPreviewPanel({
   personId,
   jobId,
   onChange,
+  onFileSelected,
 }: {
   label: string;
   documentType: "CANDIDATE_CV" | "JOB_SPEC";
@@ -48,6 +49,12 @@ export default function DocumentPreviewPanel({
   personId?: string;
   jobId?: string;
   onChange: () => void;
+  // When provided, a chosen file is handed to the parent instead of being
+  // uploaded directly — used for Candidate CVs, where picking a file starts
+  // a parse-and-review step first (see CvReviewPanel) rather than uploading
+  // blind. Leave unset (as Job Spec does) to keep the plain upload-on-choice
+  // behavior below.
+  onFileSelected?: (file: File) => void;
 }) {
   const doc = documents.find((d) => d.type === documentType);
   const versions = [...(doc?.versions ?? [])].sort((a, b) => b.versionNo - a.versionNo);
@@ -108,6 +115,10 @@ export default function DocumentPreviewPanel({
   }, [selectedVersionId]);
 
   async function onUpload(file: File) {
+    if (onFileSelected) {
+      onFileSelected(file);
+      return;
+    }
     setUploading(true);
     setUploadError(null);
     try {
