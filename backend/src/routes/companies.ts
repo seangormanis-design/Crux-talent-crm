@@ -55,7 +55,7 @@ companiesRouter.get("/:id", async (req, res) => {
         where: { deletedAt: null },
         include: { interactions: { orderBy: { occurredAt: "desc" }, take: 1 } },
       },
-      jobs: true,
+      jobs: { include: { placement: true }, orderBy: { createdAt: "desc" } },
       documents: { include: { versions: true } },
       interactions: { orderBy: { occurredAt: "desc" } },
       tags: { include: { tag: true } },

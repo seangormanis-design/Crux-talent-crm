@@ -142,6 +142,10 @@ export function CompanyDetail() {
   const [contactJobTitle, setContactJobTitle] = useState("");
   const [contactDuplicateMatches, setContactDuplicateMatches] = useState<any[] | null>(null);
   const [creatingContact, setCreatingContact] = useState(false);
+  const [showAddJob, setShowAddJob] = useState(false);
+  const [newJobTitle, setNewJobTitle] = useState("");
+  const [creatingJob, setCreatingJob] = useState(false);
+  const [showClosedJobs, setShowClosedJobs] = useState(false);
 
   function load() {
     api.get(`/api/companies/${id}`).then(setCompany);
@@ -200,6 +204,32 @@ export function CompanyDetail() {
     if (matches.length) setContactDuplicateMatches(matches);
     else await createContact();
   }
+
+  async function createJob(e: FormEvent) {
+    e.preventDefault();
+    setCreatingJob(true);
+    try {
+      await api.post("/api/jobs", { title: newJobTitle, companyId: id });
+      setNewJobTitle("");
+      setShowAddJob(false);
+      load();
+    } finally {
+      setCreatingJob(false);
+    }
+  }
+
+  const CLOSED_JOB_STAGES = new Set(["PLACED", "REJECTED"]);
+
+  const { activeJobs, closedJobs } = useMemo(() => {
+    const jobs = [...(company?.jobs ?? [])].sort(
+      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    return {
+      activeJobs: jobs.filter((j: any) => !CLOSED_JOB_STAGES.has(j.stage)),
+      closedJobs: jobs.filter((j: any) => CLOSED_JOB_STAGES.has(j.stage)),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company]);
 
   const sortedContacts = useMemo(() => {
     const contacts = company?.contacts ?? [];
@@ -386,18 +416,60 @@ export function CompanyDetail() {
         </ul>
       </section>
 
-      <section>
-        <h2 className="mb-2 font-medium">Jobs</h2>
-        <ul className="space-y-1 text-sm">
-          {company.jobs?.map((j: any) => (
-            <li key={j.id}>
-              <Link to={`/jobs/${j.id}`} className="text-blue-600">
-                {j.title}
-              </Link>{" "}
-              — {j.stage.replaceAll("_", " ")}
-            </li>
+      <section className="rounded border bg-white p-3 text-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-medium">Jobs</h2>
+          <button
+            type="button"
+            onClick={() => setShowAddJob((s) => !s)}
+            className="rounded border px-2 py-1 text-xs hover:bg-slate-100"
+          >
+            {showAddJob ? "Cancel" : "+ Add job"}
+          </button>
+        </div>
+
+        {showAddJob && (
+          <form onSubmit={createJob} className="mb-3 flex gap-2 rounded border bg-slate-50 p-3">
+            <input
+              className="flex-1 rounded border px-3 py-2 text-sm"
+              placeholder="Job title"
+              value={newJobTitle}
+              onChange={(e) => setNewJobTitle(e.target.value)}
+              required
+              autoFocus
+            />
+            <button disabled={creatingJob} className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50">
+              {creatingJob ? "Creating..." : "Create"}
+            </button>
+          </form>
+        )}
+
+        <ul className="space-y-1">
+          {activeJobs.map((j: any) => (
+            <JobRow key={j.id} job={j} />
           ))}
+          {!activeJobs.length && !closedJobs.length && <li className="text-slate-400">No jobs linked yet</li>}
+          {!activeJobs.length && !!closedJobs.length && <li className="text-slate-400">No active jobs</li>}
         </ul>
+
+        {closedJobs.length > 0 && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setShowClosedJobs((s) => !s)}
+              className="text-xs text-slate-500 hover:underline"
+            >
+              {showClosedJobs ? "▾" : "▸"} Closed jobs ({closedJobs.length})
+            </button>
+            {showClosedJobs && (
+              <ul className="mt-1 space-y-1">
+                {closedJobs.map((j: any) => (
+                  <JobRow key={j.id} job={j} />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </section>
 
       <section>
@@ -412,6 +484,25 @@ export function CompanyDetail() {
         </ul>
       </section>
     </div>
+  );
+}
+
+function JobRow({ job }: { job: any }) {
+  return (
+    <li className="flex items-center justify-between rounded border px-2 py-1.5">
+      <span>
+        <Link to={`/jobs/${job.id}`} className="text-blue-600">
+          {job.title}
+        </Link>{" "}
+        <span className="text-slate-500">— {job.stage.replaceAll("_", " ")}</span>
+      </span>
+      <span className="text-xs text-slate-400">
+        Created {new Date(job.createdAt).toLocaleDateString()}
+        {job.stage === "PLACED" && job.placement?.startDate && (
+          <> · Placed {new Date(job.placement.startDate).toLocaleDateString()}</>
+        )}
+      </span>
+    </li>
   );
 }
 
