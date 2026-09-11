@@ -16,6 +16,7 @@ interface ExtractedFields {
   currentTitle?: string;
   currentEmployerName?: string;
   skills: SkillRef[];
+  suggestedSkills: SkillRef[];
 }
 
 const EMPTY_FORM = { firstName: "", surname: "", email: "", phone: "", currentTitle: "", currentEmployerName: "" };
@@ -30,6 +31,7 @@ export default function CvDropCreatePanel() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [skillOptions, setSkillOptions] = useState<SkillRef[]>([]);
+  const [suggestedSkillOptions, setSuggestedSkillOptions] = useState<SkillRef[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [duplicateMatches, setDuplicateMatches] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export default function CvDropCreatePanel() {
     setFile(null);
     setForm(EMPTY_FORM);
     setSkillOptions([]);
+    setSuggestedSkillOptions([]);
     setSelectedSkillIds(new Set());
     setDuplicateMatches(null);
     setError(null);
@@ -68,6 +71,8 @@ export default function CvDropCreatePanel() {
       });
       setSkillOptions(extracted.skills);
       setSelectedSkillIds(new Set(extracted.skills.map((s) => s.id)));
+      const confirmedIds = new Set(extracted.skills.map((s) => s.id));
+      setSuggestedSkillOptions(extracted.suggestedSkills.filter((s) => !confirmedIds.has(s.id)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not parse that CV");
       setFile(null);
@@ -253,6 +258,29 @@ export default function CvDropCreatePanel() {
               <div className="flex flex-wrap gap-2">
                 {skillOptions.map((s) => (
                   <label key={s.id} className="flex items-center gap-1 rounded border px-2 py-1 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedSkillIds.has(s.id)}
+                      onChange={() => toggleSkill(s.id)}
+                    />
+                    {s.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {suggestedSkillOptions.length > 0 && (
+            <div>
+              <p className="mb-1 text-sm text-amber-700">
+                Possibly also — a near-match, not certain, so left unchecked. Tick any that are correct.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {suggestedSkillOptions.map((s) => (
+                  <label
+                    key={s.id}
+                    className="flex items-center gap-1 rounded border border-dashed border-amber-400 bg-amber-50 px-2 py-1 text-sm"
+                  >
                     <input
                       type="checkbox"
                       checked={selectedSkillIds.has(s.id)}

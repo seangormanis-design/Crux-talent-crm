@@ -14,6 +14,7 @@ interface ExtractedFields {
   currentTitle?: string;
   currentEmployerName?: string;
   skills: SkillRef[];
+  suggestedSkills: SkillRef[];
 }
 
 export default function CvParsePanel({
@@ -38,6 +39,7 @@ export default function CvParsePanel({
   });
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [allSkillOptions, setAllSkillOptions] = useState<SkillRef[]>([]);
+  const [suggestedSkillOptions, setSuggestedSkillOptions] = useState<SkillRef[]>([]);
 
   async function onFileSelected(file: File) {
     setError(null);
@@ -55,12 +57,15 @@ export default function CvParsePanel({
         currentTitle: fields.currentTitle ?? "",
         currentEmployerName: fields.currentEmployerName ?? "",
       });
-      // Pre-check existing skills plus anything newly matched in the CV —
-      // reviewing means correcting this set, not starting from a blank one.
+      // Pre-check existing skills plus anything confidently matched in the
+      // CV — reviewing means correcting this set, not starting from blank.
       const union = new Map<string, SkillRef>();
       for (const s of [...existingSkills, ...fields.skills]) union.set(s.id, s);
       setAllSkillOptions(Array.from(union.values()));
       setSelectedSkillIds(new Set(union.keys()));
+      // Near-matches (spacing/abbreviation variants, minor typos) — shown
+      // separately and left unchecked; approving one is a deliberate action.
+      setSuggestedSkillOptions(fields.suggestedSkills.filter((s) => !union.has(s.id)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not parse that CV");
     } finally {
@@ -91,6 +96,7 @@ export default function CvParsePanel({
         skillIds: Array.from(selectedSkillIds),
       });
       setExtracted(null);
+      setSuggestedSkillOptions([]);
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save");
@@ -159,9 +165,35 @@ export default function CvParsePanel({
             </div>
           )}
 
+          {suggestedSkillOptions.length > 0 && (
+            <div>
+              <p className="mb-1 text-sm text-amber-700">
+                Possibly also — a near-match, not certain, so left unchecked. Tick any that are correct.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {suggestedSkillOptions.map((s) => (
+                  <label
+                    key={s.id}
+                    className="flex items-center gap-1 rounded border border-dashed border-amber-400 bg-amber-50 px-2 py-1 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSkillIds.has(s.id)}
+                      onChange={() => toggleSkill(s.id)}
+                    />
+                    {s.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
-              onClick={() => setExtracted(null)}
+              onClick={() => {
+                setExtracted(null);
+                setSuggestedSkillOptions([]);
+              }}
               className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
             >
               Discard

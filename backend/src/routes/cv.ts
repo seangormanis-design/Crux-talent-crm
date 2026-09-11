@@ -27,7 +27,8 @@ cvRouter.post("/parse", upload.single("file"), async (req, res) => {
   const knownSkills = await prisma.skill.findMany();
   const extracted = extractCvFields(text, knownSkills.map((s) => s.name));
 
-  const matchedSkills = knownSkills.filter((s) => extracted.skillNames.includes(s.name));
+  const confirmedSkills = knownSkills.filter((s) => extracted.confirmedSkillNames.includes(s.name));
+  const suggestedSkills = knownSkills.filter((s) => extracted.suggestedSkillNames.includes(s.name));
 
   res.json({
     extracted: {
@@ -37,7 +38,11 @@ cvRouter.post("/parse", upload.single("file"), async (req, res) => {
       phone: extracted.phone,
       currentTitle: extracted.currentTitle,
       currentEmployerName: extracted.currentEmployerName,
-      skills: matchedSkills.map((s) => ({ id: s.id, name: s.name })),
+      // Confident matches — pre-checked in the review form.
+      skills: confirmedSkills.map((s) => ({ id: s.id, name: s.name })),
+      // Near-matches (spacing/abbreviation variants, minor typos) — shown
+      // separately, unchecked, for the user to approve rather than assume.
+      suggestedSkills: suggestedSkills.map((s) => ({ id: s.id, name: s.name })),
     },
   });
 });
