@@ -6,6 +6,7 @@ import SkillPicker from "../components/SkillPicker";
 import RoleTypePicker from "../components/RoleTypePicker";
 import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
+import JobCreateForm from "../components/JobCreateForm";
 import { fullName } from "../lib/personName";
 
 interface Job {
@@ -14,11 +15,6 @@ interface Job {
   stage: string;
   company: { name: string };
   archivedAt?: string | null;
-}
-
-interface Company {
-  id: string;
-  name: string;
 }
 
 const STAGES = [
@@ -41,28 +37,14 @@ const FEE_TYPE_OPTIONS = [
 
 export function JobsList() {
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState("");
-  const [companyId, setCompanyId] = useState("");
   const [showArchived, setShowArchived] = useState(false);
 
   function load(archived = showArchived) {
     api.get<Job[]>(`/api/jobs${archived ? "?includeArchived=true" : ""}`).then(setJobs);
   }
 
-  useEffect(() => {
-    load();
-    api.get<Company[]>("/api/companies").then(setCompanies);
-  }, []);
-
-  async function onCreate(e: FormEvent) {
-    e.preventDefault();
-    await api.post("/api/jobs", { title, companyId });
-    setTitle("");
-    setShowForm(false);
-    load();
-  }
+  useEffect(() => load(), []);
 
   return (
     <div>
@@ -74,24 +56,12 @@ export function JobsList() {
       </div>
 
       {showForm && (
-        <form onSubmit={onCreate} className="mb-4 flex gap-2 rounded border bg-white p-3">
-          <select className="rounded border px-2 py-2 text-sm" value={companyId} onChange={(e) => setCompanyId(e.target.value)} required>
-            <option value="">Select company...</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <input
-            className="flex-1 rounded border px-3 py-2"
-            placeholder="Job title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
-          <button className="rounded bg-slate-900 px-3 py-2 text-sm text-white">Create</button>
-        </form>
+        <JobCreateForm
+          onCreated={() => {
+            setShowForm(false);
+            load();
+          }}
+        />
       )}
 
       <label className="mb-4 flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">

@@ -4,7 +4,8 @@ import { api } from "../api/client";
 import InlineField from "../components/InlineField";
 import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
-import DuplicateWarningModal from "../components/DuplicateWarningModal";
+import PersonCreateForm from "../components/PersonCreateForm";
+import JobCreateForm from "../components/JobCreateForm";
 import { fullName } from "../lib/personName";
 
 interface Company {
@@ -133,18 +134,10 @@ export function CompaniesList() {
 
 export function CompanyDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [company, setCompany] = useState<any>(null);
   const [showAddContact, setShowAddContact] = useState(false);
-  const [contactFirstName, setContactFirstName] = useState("");
-  const [contactSurname, setContactSurname] = useState("");
-  const [contactWorkEmail, setContactWorkEmail] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
-  const [contactJobTitle, setContactJobTitle] = useState("");
-  const [contactDuplicateMatches, setContactDuplicateMatches] = useState<any[] | null>(null);
-  const [creatingContact, setCreatingContact] = useState(false);
   const [showAddJob, setShowAddJob] = useState(false);
-  const [newJobTitle, setNewJobTitle] = useState("");
-  const [creatingJob, setCreatingJob] = useState(false);
   const [showClosedJobs, setShowClosedJobs] = useState(false);
 
   function load() {
@@ -161,61 +154,6 @@ export function CompanyDetail() {
   async function onToggleArchive() {
     await api.post(`/api/companies/${id}/${company.archivedAt ? "unarchive" : "archive"}`);
     load();
-  }
-
-  function resetAddContactForm() {
-    setContactFirstName("");
-    setContactSurname("");
-    setContactWorkEmail("");
-    setContactPhone("");
-    setContactJobTitle("");
-    setShowAddContact(false);
-    setContactDuplicateMatches(null);
-  }
-
-  async function createContact(linkedPersonId?: string) {
-    setCreatingContact(true);
-    try {
-      await api.post("/api/people", {
-        personType: "CLIENT_CONTACT",
-        firstName: contactFirstName,
-        surname: contactSurname || undefined,
-        workEmail: contactWorkEmail || undefined,
-        phone: contactPhone || undefined,
-        jobTitle: contactJobTitle || undefined,
-        companyId: id,
-        linkedPersonId,
-      });
-      resetAddContactForm();
-      load();
-    } finally {
-      setCreatingContact(false);
-    }
-  }
-
-  async function onAddContactSubmit(e: FormEvent) {
-    e.preventDefault();
-    const { matches } = await api.post<{ matches: any[] }>("/api/people/check-duplicates", {
-      firstName: contactFirstName,
-      surname: contactSurname || undefined,
-      workEmail: contactWorkEmail || undefined,
-      phone: contactPhone || undefined,
-    });
-    if (matches.length) setContactDuplicateMatches(matches);
-    else await createContact();
-  }
-
-  async function createJob(e: FormEvent) {
-    e.preventDefault();
-    setCreatingJob(true);
-    try {
-      await api.post("/api/jobs", { title: newJobTitle, companyId: id });
-      setNewJobTitle("");
-      setShowAddJob(false);
-      load();
-    } finally {
-      setCreatingJob(false);
-    }
   }
 
   const CLOSED_JOB_STAGES = new Set(["PLACED", "REJECTED"]);
@@ -338,60 +276,10 @@ export function CompanyDetail() {
         </div>
 
         {showAddContact && (
-          <form onSubmit={onAddContactSubmit} className="mb-3 space-y-2 rounded border bg-slate-50 p-3">
-            <div className="flex flex-wrap gap-2">
-              <input
-                className="flex-1 rounded border px-3 py-2 text-sm"
-                placeholder="First name"
-                value={contactFirstName}
-                onChange={(e) => setContactFirstName(e.target.value)}
-                required
-                autoFocus
-              />
-              <input
-                className="flex-1 rounded border px-3 py-2 text-sm"
-                placeholder="Surname"
-                value={contactSurname}
-                onChange={(e) => setContactSurname(e.target.value)}
-              />
-              <input
-                type="email"
-                className="flex-1 rounded border px-3 py-2 text-sm"
-                placeholder="Work email"
-                value={contactWorkEmail}
-                onChange={(e) => setContactWorkEmail(e.target.value)}
-              />
-              <input
-                className="flex-1 rounded border px-3 py-2 text-sm"
-                placeholder="Phone"
-                value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
-              />
-              <input
-                className="flex-1 rounded border px-3 py-2 text-sm"
-                placeholder="Job title"
-                value={contactJobTitle}
-                onChange={(e) => setContactJobTitle(e.target.value)}
-              />
-            </div>
-            <button disabled={creatingContact} className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-50">
-              {creatingContact ? "Adding..." : "Add contact"}
-            </button>
-          </form>
-        )}
-
-        {contactDuplicateMatches && (
-          <DuplicateWarningModal
-            candidate={{ firstName: contactFirstName, surname: contactSurname, workEmail: contactWorkEmail, phone: contactPhone }}
-            matches={contactDuplicateMatches}
-            onUseExisting={async (personId) => {
-              await api.patch(`/api/people/${personId}`, { companyId: id, jobTitle: contactJobTitle || undefined });
-              resetAddContactForm();
-              load();
-            }}
-            onLinkNew={(personId) => createContact(personId)}
-            onCreateAnyway={() => createContact()}
-            onCancel={() => setContactDuplicateMatches(null)}
+          <PersonCreateForm
+            personType="CLIENT_CONTACT"
+            initialCompany={{ id: company.id, name: company.name }}
+            onCreated={(person) => navigate(`/people/${person.id}`)}
           />
         )}
 
@@ -429,19 +317,13 @@ export function CompanyDetail() {
         </div>
 
         {showAddJob && (
-          <form onSubmit={createJob} className="mb-3 flex gap-2 rounded border bg-slate-50 p-3">
-            <input
-              className="flex-1 rounded border px-3 py-2 text-sm"
-              placeholder="Job title"
-              value={newJobTitle}
-              onChange={(e) => setNewJobTitle(e.target.value)}
-              required
-              autoFocus
-            />
-            <button disabled={creatingJob} className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50">
-              {creatingJob ? "Creating..." : "Create"}
-            </button>
-          </form>
+          <JobCreateForm
+            initialCompanyId={company.id}
+            onCreated={() => {
+              setShowAddJob(false);
+              load();
+            }}
+          />
         )}
 
         <ul className="space-y-1">
