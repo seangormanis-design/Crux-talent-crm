@@ -696,6 +696,8 @@ export function PersonDetail() {
   const [extractError, setExtractError] = useState<string | null>(null);
   const [reflectingId, setReflectingId] = useState<string | null>(null);
   const [reflectError, setReflectError] = useState<string | null>(null);
+  const [confirmingAnonymize, setConfirmingAnonymize] = useState(false);
+  const [anonymizing, setAnonymizing] = useState(false);
 
   function load() {
     api.get(`/api/people/${id}`).then((p: any) => {
@@ -793,6 +795,17 @@ export function PersonDetail() {
   async function unlink() {
     await api.post(`/api/people/${id}/unlink`);
     load();
+  }
+
+  async function anonymizePerson() {
+    setAnonymizing(true);
+    try {
+      await api.post(`/api/people/${id}/anonymize`);
+      setConfirmingAnonymize(false);
+      load();
+    } finally {
+      setAnonymizing(false);
+    }
   }
 
   if (!person) return <p>Loading...</p>;
@@ -954,7 +967,95 @@ export function PersonDetail() {
                 />
               </div>
             </DetailRow>
+            <DetailRow label="Source">
+              <select
+                className="w-full rounded border-none bg-transparent px-2 py-1 text-sm hover:bg-slate-100"
+                value={person.source ?? ""}
+                onChange={(e) => saveField("source", e.target.value)}
+              >
+                <option value="">—</option>
+                <option value="LINKEDIN">LinkedIn</option>
+                <option value="REFERRAL">Referral</option>
+                <option value="INBOUND">Inbound</option>
+                <option value="SOURCED">Sourced</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </DetailRow>
+            <DetailRow label="GDPR consent">
+              <div className="flex items-center gap-2">
+                <label className="flex shrink-0 items-center gap-1.5 px-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={!!person.gdprConsent}
+                    onChange={async (e) => {
+                      await api.patch(`/api/people/${id}`, { gdprConsent: e.target.checked });
+                      load();
+                    }}
+                  />
+                  Consent given
+                </label>
+                <InlineField
+                  value={person.gdprConsentNote ?? ""}
+                  placeholder="e.g. how/when consent was given"
+                  onSave={(v) => saveField("gdprConsentNote", v)}
+                />
+              </div>
+            </DetailRow>
+            <DetailRow label="Lawful basis">
+              <InlineField
+                value={person.lawfulBasisNote ?? ""}
+                placeholder="e.g. legitimate interest, contract"
+                onSave={(v) => saveField("lawfulBasisNote", v)}
+              />
+            </DetailRow>
+            <DetailRow label="Retention review date">
+              <InlineField
+                value={toDateInputValue(person.retentionReviewAt)}
+                displayValue={person.retentionReviewAt ? new Date(person.retentionReviewAt).toLocaleDateString() : undefined}
+                type="date"
+                placeholder="Set a review date"
+                onSave={(v) => saveField("retentionReviewAt", v)}
+              />
+            </DetailRow>
           </dl>
+
+          <div className="mt-3 border-t pt-3">
+            {person.isAnonymized ? (
+              <p className="text-xs text-slate-400">This record has been anonymized.</p>
+            ) : confirmingAnonymize ? (
+              <div className="rounded border border-red-300 bg-red-50 p-2 text-xs">
+                <p className="mb-2 text-red-700">
+                  This permanently scrubs their name, email, phone, and notes. Interaction and pipeline history is
+                  kept but is no longer linked to identifiable personal data. This cannot be undone.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={anonymizing}
+                    onClick={anonymizePerson}
+                    className="rounded bg-red-600 px-2 py-1 text-white disabled:opacity-50"
+                  >
+                    {anonymizing ? "Anonymizing..." : "Yes, anonymize this record"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingAnonymize(false)}
+                    className="rounded border px-2 py-1 hover:bg-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingAnonymize(true)}
+                className="text-xs text-red-600 hover:underline"
+              >
+                Anonymize this record
+              </button>
+            )}
+          </div>
         </section>
 
       {person.personType === "CANDIDATE" && (

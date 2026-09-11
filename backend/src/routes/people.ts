@@ -69,7 +69,7 @@ const personSchema = z.object({
   gdprConsent: z.boolean().optional(),
   gdprConsentNote: z.string().optional(),
   lawfulBasisNote: z.string().optional(),
-  retentionReviewAt: z.coerce.date().optional(),
+  retentionReviewAt: nullableDate,
 
   // Follow-up reminder
   followUpAt: nullableDate,
