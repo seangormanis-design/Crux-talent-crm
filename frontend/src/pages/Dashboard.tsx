@@ -17,6 +17,7 @@ interface DashboardData {
     recentInteractions: any[];
     candidatesAwaitingResponse: any[];
     followUps: any[];
+    invoicesDue: any[];
   };
 }
 
@@ -70,6 +71,22 @@ export default function Dashboard() {
               — {new Date(person.followUpAt).toLocaleDateString()}
               {isOverdue(person.followUpAt) ? " (overdue)" : ""}
               {person.followUpNote ? ` — ${person.followUpNote}` : ""}
+            </li>
+          ))}
+        </FeedBlock>
+
+        <FeedBlock title="Invoices due/overdue">
+          {data.activityFeed.invoicesDue.map((placement) => (
+            <li key={placement.id}>
+              <Link
+                to={`/companies/${placement.company.id}`}
+                className={isOverdue(placement.invoiceDueDate) ? "font-medium text-red-600" : "text-blue-600"}
+              >
+                Invoice {isOverdue(placement.invoiceDueDate) ? "overdue" : "due"} for {placement.company?.name}
+              </Link>{" "}
+              — {fullName(placement.candidate ?? {})} placement — due{" "}
+              {new Date(placement.invoiceDueDate).toLocaleDateString()}
+              {isOverdue(placement.invoiceDueDate) ? " (overdue)" : ""}
             </li>
           ))}
         </FeedBlock>

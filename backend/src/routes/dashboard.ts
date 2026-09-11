@@ -5,15 +5,24 @@ export const dashboardRouter = Router();
 
 const STALE_JOB_DAYS = 14;
 const DOC_EXPIRY_WARNING_DAYS = 30;
+const INVOICE_DUE_WARNING_DAYS = 7;
 
 // Pipeline/funnel view + activity feed, equally weighted per spec section 5.
 dashboardRouter.get("/", async (_req, res) => {
   const now = new Date();
   const staleThreshold = new Date(now.getTime() - STALE_JOB_DAYS * 24 * 60 * 60 * 1000);
   const docExpiryThreshold = new Date(now.getTime() + DOC_EXPIRY_WARNING_DAYS * 24 * 60 * 60 * 1000);
+  const invoiceDueThreshold = new Date(now.getTime() + INVOICE_DUE_WARNING_DAYS * 24 * 60 * 60 * 1000);
 
-  const [jobsByStage, staleJobs, expiringDocuments, recentInteractions, candidatesAwaitingResponse, followUps] =
-    await Promise.all([
+  const [
+    jobsByStage,
+    staleJobs,
+    expiringDocuments,
+    recentInteractions,
+    candidatesAwaitingResponse,
+    followUps,
+    invoicesDue,
+  ] = await Promise.all([
       prisma.job.groupBy({ by: ["stage"], where: { archivedAt: null }, _count: { _all: true } }),
       prisma.job.findMany({
         where: { updatedAt: { lt: staleThreshold }, stage: { notIn: ["PLACED", "REJECTED"] }, archivedAt: null },
@@ -42,6 +51,18 @@ dashboardRouter.get("/", async (_req, res) => {
         orderBy: { followUpAt: "asc" },
         take: 50,
       }),
+      // Due within the warning window or already overdue, and not already
+      // settled — resolved automatically as invoiceDueDate/invoiceStatus
+      // change, no separate "mark as a follow-up" step needed.
+      prisma.placement.findMany({
+        where: {
+          invoiceDueDate: { not: null, lte: invoiceDueThreshold },
+          invoiceStatus: { notIn: ["PAID", "CANCELLED"] },
+        },
+        include: { candidate: true, company: true },
+        orderBy: { invoiceDueDate: "asc" },
+        take: 50,
+      }),
     ]);
 
   res.json({
@@ -52,6 +73,7 @@ dashboardRouter.get("/", async (_req, res) => {
       recentInteractions,
       candidatesAwaitingResponse,
       followUps,
+      invoicesDue,
     },
   });
 });

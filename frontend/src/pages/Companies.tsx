@@ -498,26 +498,38 @@ export function CompanyDetail() {
           )}
 
           <ul className="space-y-1">
-            {placements.map((p: any) => (
-              <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
-                <span>
-                  {p.candidate ? (
-                    <Link to={`/people/${p.candidate.id}`} className="text-blue-600">
-                      {fullName(p.candidate)}
-                    </Link>
-                  ) : (
-                    "—"
-                  )}{" "}
-                  —{" "}
-                  <Link to={`/jobs/${p.job.id}`} className="text-blue-600">
-                    {p.job?.title}
-                  </Link>
-                </span>
-                <span className="text-xs text-slate-400">
-                  {p.feeValue} ({p.feeType.replaceAll("_", " ")}) · Placed {new Date(p.startDate).toLocaleDateString()}
-                </span>
-              </li>
-            ))}
+            {placements.map((p: any) => {
+              const unpaidOverdue =
+                p.invoiceStatus !== "PAID" && p.invoiceStatus !== "CANCELLED" && p.invoiceDueDate && new Date(p.invoiceDueDate) < new Date();
+              return (
+                <li key={p.id} className="rounded border px-2 py-1.5">
+                  <div className="flex items-center justify-between">
+                    <span>
+                      {p.candidate ? (
+                        <Link to={`/people/${p.candidate.id}`} className="text-blue-600">
+                          {fullName(p.candidate)}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}{" "}
+                      —{" "}
+                      <Link to={`/jobs/${p.job.id}`} className="text-blue-600">
+                        {p.job?.title}
+                      </Link>
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {p.feeValue} ({p.feeType.replaceAll("_", " ")}) · Placed {new Date(p.startDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className={`mt-1 text-xs ${unpaidOverdue ? "font-medium text-red-600" : "text-slate-500"}`}>
+                    Payment status: {p.invoiceStatus.replaceAll("_", " ")}
+                    {p.invoiceRaisedDate && ` · Invoice raised ${new Date(p.invoiceRaisedDate).toLocaleDateString()}`}
+                    {p.invoiceDueDate && ` · Invoice due ${new Date(p.invoiceDueDate).toLocaleDateString()}`}
+                    {p.paidDate && ` · Paid ${new Date(p.paidDate).toLocaleDateString()}`}
+                  </div>
+                </li>
+              );
+            })}
             {!placements.length && <li className="text-slate-400">No placements yet</li>}
           </ul>
         </section>

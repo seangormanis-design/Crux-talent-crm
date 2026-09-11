@@ -564,6 +564,9 @@ model Placement {
   feeType     FeeType
   feeValue    Decimal  @db.Decimal(12, 2)
   invoiceStatus InvoiceStatus @default(NOT_INVOICED)
+  invoiceRaisedDate DateTime?
+  invoiceDueDate    DateTime?
+  paidDate          DateTime?
 
   startDate DateTime
   endDate   DateTime?

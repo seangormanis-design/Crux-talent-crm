@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { nullableDate } from "../lib/zodHelpers";
 
 export const placementsRouter = Router();
 
@@ -13,6 +14,9 @@ const placementSchema = z.object({
   feeType: z.enum(["PERM_PERCENTAGE", "CONTRACT_MARGIN", "DAY_RATE_UPLIFT"]),
   feeValue: z.number(),
   invoiceStatus: z.enum(["NOT_INVOICED", "INVOICED", "PAID", "OVERDUE", "CANCELLED"]).optional(),
+  invoiceRaisedDate: nullableDate,
+  invoiceDueDate: nullableDate,
+  paidDate: nullableDate,
   startDate: z.coerce.date(),
   endDate: z.coerce.date().optional(),
   renewalReviewAt: z.coerce.date().optional(),
