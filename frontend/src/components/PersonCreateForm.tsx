@@ -34,6 +34,7 @@ export default function PersonCreateForm({
   const [addressPostcode, setAddressPostcode] = useState("");
   const [seniority, setSeniority] = useState("");
   const [location, setLocation] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
   const [skillIds, setSkillIds] = useState<string[]>([]);
   const [company, setCompany] = useState<CompanyOption | null>(initialCompany);
   const [duplicateMatches, setDuplicateMatches] = useState<any[] | null>(null);
@@ -66,6 +67,7 @@ export default function PersonCreateForm({
             }
           : {
               companyId: company?.id || undefined,
+              jobTitle: jobTitle || undefined,
             }),
         linkedPersonId,
       });
@@ -190,7 +192,17 @@ export default function PersonCreateForm({
         {personType === "CLIENT_CONTACT" && (
           <div>
             <p className="mb-1.5 text-xs font-medium uppercase text-slate-400">Company</p>
-            <CompanyPicker value={company} onChange={setCompany} placeholder="Search or add a new company" />
+            <div className="flex flex-wrap gap-2">
+              <div className="flex-1">
+                <CompanyPicker value={company} onChange={setCompany} placeholder="Search or add a new company" />
+              </div>
+              <input
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="Job title"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+              />
+            </div>
           </div>
         )}
 

@@ -726,9 +726,17 @@ export function PersonDetail() {
               inputClassName="text-xl font-semibold"
             />
           </div>
-          <p className="ml-2 text-sm text-slate-500">
-            {person.personType === "CANDIDATE" ? person.currentTitle : person.jobTitle}
-          </p>
+          {person.personType === "CANDIDATE" ? (
+            <p className="ml-2 text-sm text-slate-500">{person.currentTitle}</p>
+          ) : (
+            <div className="ml-2 text-sm text-slate-500">
+              <InlineField
+                value={person.jobTitle ?? ""}
+                placeholder="Add job title"
+                onSave={(v) => saveField("jobTitle", v)}
+              />
+            </div>
+          )}
         </div>
         <button onClick={onToggleArchive} className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100">
           {person.archivedAt ? "Unarchive" : "Archive"}
