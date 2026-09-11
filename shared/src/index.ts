@@ -16,7 +16,7 @@ export const JOB_STAGES = [
 ] as const;
 export type JobStage = (typeof JOB_STAGES)[number];
 
-export const CANDIDATE_STAGES = ["SOURCED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"] as const;
+export const CANDIDATE_STAGES = ["SHORTLISTED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"] as const;
 export type CandidateStage = (typeof CANDIDATE_STAGES)[number];
 
 export const INTERACTION_TYPES = [

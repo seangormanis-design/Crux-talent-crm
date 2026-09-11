@@ -100,8 +100,8 @@ async function main() {
       { jobId: job.id, fromStage: "POTENTIAL_LEAD", toStage: "QUALIFIED" },
       { jobId: job.id, fromStage: "QUALIFIED", toStage: "SPEC_TAKEN" },
       { jobId: job.id, fromStage: "SPEC_TAKEN", toStage: "CV_SOURCING" },
-      { jobCandidateId: pairing.id, toStage: "SOURCED" },
-      { jobCandidateId: pairing.id, fromStage: "SOURCED", toStage: "CV_SENT" },
+      { jobCandidateId: pairing.id, toStage: "SHORTLISTED" },
+      { jobCandidateId: pairing.id, fromStage: "SHORTLISTED", toStage: "CV_SENT" },
     ],
   });
 

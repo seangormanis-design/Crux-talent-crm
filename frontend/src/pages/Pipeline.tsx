@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { fullName } from "../lib/personName";
 
-const CANDIDATE_STAGES = ["SOURCED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"];
+const CANDIDATE_STAGES = ["SHORTLISTED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"];
 
 interface Pairing {
   id: string;

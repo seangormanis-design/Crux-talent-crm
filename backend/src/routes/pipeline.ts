@@ -5,7 +5,7 @@ import { AuthenticatedRequest } from "../middleware/requireAuth";
 
 export const pipelineRouter = Router();
 
-const CANDIDATE_STAGES = ["SOURCED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"] as const;
+const CANDIDATE_STAGES = ["SHORTLISTED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"] as const;
 
 // Kanban board data: every job-candidate pairing grouped by its own sub-stage,
 // independent of the job's overall stage.
@@ -37,7 +37,7 @@ pipelineRouter.post("/", async (req, res) => {
   ]);
 
   await prisma.stageChange.create({
-    data: { jobCandidateId: pairing.id, toStage: "SOURCED" },
+    data: { jobCandidateId: pairing.id, toStage: "SHORTLISTED" },
   });
 
   res.status(201).json(pairing);

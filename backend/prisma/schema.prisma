@@ -302,7 +302,7 @@ model Job {
 }
 
 enum CandidateStage {
-  SOURCED
+  SHORTLISTED
   CV_SENT
   REJECTED
   INTERVIEWING
@@ -316,7 +316,7 @@ model JobCandidate {
   job         Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
   candidateId String
   candidate   Person         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  stage       CandidateStage @default(SOURCED)
+  stage       CandidateStage @default(SHORTLISTED)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

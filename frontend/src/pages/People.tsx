@@ -44,7 +44,7 @@ function lastNoteOf(p: Person): string {
   return latest ? new Date(latest).toLocaleDateString() : "—";
 }
 
-const CANDIDATE_STAGE_OPTIONS = ["SOURCED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"];
+const CANDIDATE_STAGE_OPTIONS = ["SHORTLISTED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"];
 
 interface ColumnDef {
   key: string;
