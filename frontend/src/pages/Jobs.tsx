@@ -31,6 +31,12 @@ const STAGES = [
   "REJECTED",
 ];
 
+const FEE_TYPE_OPTIONS = [
+  { value: "PERM_PERCENTAGE", label: "Permanent (% of salary)" },
+  { value: "CONTRACT_MARGIN", label: "Contract (margin)" },
+  { value: "DAY_RATE_UPLIFT", label: "Day rate uplift" },
+];
+
 export function JobsList() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -134,6 +140,12 @@ export function JobDetail() {
   const [job, setJob] = useState<any>(null);
   const [candidates, setCandidates] = useState<any[]>([]);
   const [candidateId, setCandidateId] = useState("");
+  const [showPlacementForm, setShowPlacementForm] = useState(false);
+  const [placementCandidateId, setPlacementCandidateId] = useState("");
+  const [feeType, setFeeType] = useState("PERM_PERCENTAGE");
+  const [feeValue, setFeeValue] = useState("");
+  const [placementStartDate, setPlacementStartDate] = useState("");
+  const [placementError, setPlacementError] = useState<string | null>(null);
 
   function load() {
     api.get(`/api/jobs/${id}`).then(setJob);
@@ -161,7 +173,34 @@ export function JobDetail() {
     load();
   }
 
+  async function createPlacement(e: FormEvent) {
+    e.preventDefault();
+    setPlacementError(null);
+    try {
+      await api.post("/api/placements", {
+        jobId: id,
+        candidateId: placementCandidateId,
+        feeType,
+        feeValue: Number(feeValue),
+        startDate: placementStartDate,
+      });
+      setShowPlacementForm(false);
+      setPlacementCandidateId("");
+      setFeeValue("");
+      setPlacementStartDate("");
+      load();
+    } catch (err) {
+      setPlacementError(err instanceof Error ? err.message : "Could not record placement");
+    }
+  }
+
   if (!job) return <p>Loading...</p>;
+
+  // "Winner" pool: whoever's reached Offered (or already flagged Placed) in
+  // this job's pipeline — that's who a placement can sensibly be recorded for.
+  const placementEligibleCandidates = (job.candidates ?? []).filter((jc: any) =>
+    ["OFFERED", "PLACED"].includes(jc.stage)
+  );
 
   return (
     <div className="space-y-6">
@@ -247,6 +286,97 @@ export function JobDetail() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="rounded border bg-white p-3">
+        <h2 className="mb-2 font-medium">Placement</h2>
+        {job.placement ? (
+          <div className="text-sm">
+            <p>
+              <Link to={`/people/${job.placement.candidate.id}`} className="text-blue-600">
+                {fullName(job.placement.candidate)}
+              </Link>{" "}
+              placed — {FEE_TYPE_OPTIONS.find((f) => f.value === job.placement.feeType)?.label ?? job.placement.feeType},
+              fee {job.placement.feeValue}
+            </p>
+            <p className="mt-1 text-slate-500">
+              Started {new Date(job.placement.startDate).toLocaleDateString()} · Invoice:{" "}
+              {job.placement.invoiceStatus.replaceAll("_", " ")}
+            </p>
+            <Link to="/placements" className="mt-1 inline-block text-xs text-blue-600 hover:underline">
+              View all placements →
+            </Link>
+          </div>
+        ) : placementEligibleCandidates.length === 0 ? (
+          <p className="text-sm text-slate-400">Available once a candidate reaches Offered.</p>
+        ) : showPlacementForm ? (
+          <form onSubmit={createPlacement} className="space-y-2 text-sm">
+            {placementError && <p className="text-red-600">{placementError}</p>}
+            <select
+              className="w-full rounded border px-2 py-2"
+              value={placementCandidateId}
+              onChange={(e) => setPlacementCandidateId(e.target.value)}
+              required
+            >
+              <option value="">Winning candidate...</option>
+              {placementEligibleCandidates.map((jc: any) => (
+                <option key={jc.candidate.id} value={jc.candidate.id}>
+                  {fullName(jc.candidate)}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <select
+                className="flex-1 rounded border px-2 py-2"
+                value={feeType}
+                onChange={(e) => setFeeType(e.target.value)}
+              >
+                {FEE_TYPE_OPTIONS.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="w-32 rounded border px-2 py-2"
+                placeholder="Fee value"
+                value={feeValue}
+                onChange={(e) => setFeeValue(e.target.value)}
+                required
+              />
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-xs text-slate-500">Placement start date</span>
+              <input
+                type="date"
+                className="rounded border px-2 py-2"
+                value={placementStartDate}
+                onChange={(e) => setPlacementStartDate(e.target.value)}
+                required
+              />
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPlacementForm(false)}
+                className="rounded border px-3 py-2 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button className="rounded bg-slate-900 px-3 py-2 text-white">Confirm placement</button>
+            </div>
+          </form>
+        ) : (
+          <button
+            onClick={() => setShowPlacementForm(true)}
+            className="rounded bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700"
+          >
+            Mark as Placed
+          </button>
+        )}
       </section>
 
       <section>

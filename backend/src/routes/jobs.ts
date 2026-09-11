@@ -75,7 +75,7 @@ jobsRouter.get("/:id", async (req, res) => {
       documents: { include: { versions: true } },
       interactions: { orderBy: { occurredAt: "desc" }, include: { person: true } },
       stageChanges: { orderBy: { createdAt: "desc" } },
-      placement: true,
+      placement: { include: { candidate: true } },
       tags: { include: { tag: true } },
     },
   });

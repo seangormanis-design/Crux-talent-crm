@@ -72,6 +72,7 @@ model Company {
   documents    Document[]
   interactions Interaction[]
   tags         TagLink[]
+  placements   Placement[]
 
   @@map("companies")
 }
@@ -180,6 +181,7 @@ model Person {
   interactions      Interaction[]
   jobApplications   JobCandidate[]
   ownedJobs         Job[]         @relation("JobOwningContact")
+  placements        Placement[]   @relation("PlacementCandidate")
   tags              TagLink[]
 
   @@map("people")
@@ -555,7 +557,9 @@ model Placement {
   jobId       String   @unique
   job         Job      @relation(fields: [jobId], references: [id])
   candidateId String
+  candidate   Person   @relation("PlacementCandidate", fields: [candidateId], references: [id])
   companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
 
   feeType     FeeType
   feeValue    Decimal  @db.Decimal(12, 2)
