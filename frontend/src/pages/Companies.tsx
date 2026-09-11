@@ -143,6 +143,7 @@ export function CompanyDetail() {
   const [showAddContact, setShowAddContact] = useState(false);
   const [showAddJob, setShowAddJob] = useState(false);
   const [showClosedJobs, setShowClosedJobs] = useState(false);
+  const [showAllActivity, setShowAllActivity] = useState(false);
 
   function load() {
     api.get(`/api/companies/${id}`).then(setCompany);
@@ -187,6 +188,20 @@ export function CompanyDetail() {
 
   const placements = company?.placements ?? [];
   const totalPlacementFees = placements.reduce((sum: number, p: any) => sum + Number(p.feeValue || 0), 0);
+
+  // Every interaction logged against any Contact linked to this company,
+  // combined into one feed — distinct from the Interactions tab, which only
+  // shows interactions logged directly against the Company itself.
+  const combinedContactActivity = useMemo(() => {
+    const contacts = company?.contacts ?? [];
+    const entries = contacts.flatMap((p: any) =>
+      (p.interactions ?? []).map((i: any) => ({ ...i, contact: p }))
+    );
+    return entries.sort((a: any, b: any) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+  }, [company]);
+
+  const ACTIVITY_PREVIEW_COUNT = 7;
+  const visibleActivity = showAllActivity ? combinedContactActivity : combinedContactActivity.slice(0, ACTIVITY_PREVIEW_COUNT);
 
   if (!company) return <p>Loading...</p>;
 
@@ -282,6 +297,35 @@ export function CompanyDetail() {
       </section>
 
       {company.notes && <p className="rounded border bg-white p-3 text-sm">{company.notes}</p>}
+
+      <section className="rounded border bg-white p-3 text-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-medium">Contact activity</h2>
+          {combinedContactActivity.length > ACTIVITY_PREVIEW_COUNT && (
+            <button
+              type="button"
+              onClick={() => setShowAllActivity((s) => !s)}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              {showAllActivity ? "Show fewer" : `View all (${combinedContactActivity.length})`}
+            </button>
+          )}
+        </div>
+        <ul className="space-y-1">
+          {visibleActivity.map((i: any) => (
+            <li key={i.id} className="flex items-center justify-between rounded border px-2 py-1.5">
+              <span>
+                <Link to={`/people/${i.contact.id}`} className="text-blue-600">
+                  {fullName(i.contact)}
+                </Link>{" "}
+                <span className="text-slate-500">— {i.type.replaceAll("_", " ")}</span>
+              </span>
+              <span className="text-xs text-slate-400">{new Date(i.occurredAt).toLocaleDateString()}</span>
+            </li>
+          ))}
+          {!combinedContactActivity.length && <li className="text-slate-400">No contact activity yet</li>}
+        </ul>
+      </section>
 
       {activeTab === "Contacts" && (
         <section className="rounded border bg-white p-3 text-sm">

@@ -50,10 +50,13 @@ companiesRouter.get("/:id", async (req, res) => {
     where: { id: req.params.id },
     include: {
       // Most-recent-first so the frontend can read contact[0]'s interaction
-      // as "last contacted" without re-sorting.
+      // as "last contacted" without re-sorting, and so every contact's full
+      // interaction history is available to build the company-wide combined
+      // activity timeline (each contact's own interactions, not just the
+      // latest one).
       contacts: {
         where: { deletedAt: null },
-        include: { interactions: { orderBy: { occurredAt: "desc" }, take: 1 } },
+        include: { interactions: { orderBy: { occurredAt: "desc" } } },
       },
       jobs: { include: { placement: true }, orderBy: { createdAt: "desc" } },
       placements: { include: { candidate: true, job: true }, orderBy: { startDate: "desc" } },
