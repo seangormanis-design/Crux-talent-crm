@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import InlineField from "../components/InlineField";
+import TagPicker from "../components/TagPicker";
+import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import { fullName } from "../lib/personName";
 
 interface Company {
@@ -219,6 +221,16 @@ export function CompanyDetail() {
       </section>
 
       {company.notes && <p className="rounded border bg-white p-3 text-sm">{company.notes}</p>}
+
+      <section className="rounded border bg-white p-3 text-sm">
+        <h2 className="mb-2 font-medium">Tags</h2>
+        <TagPicker taggableType="COMPANY" taggableId={company.id} attachedLinks={company.tags ?? []} onChange={load} />
+      </section>
+
+      <section className="rounded border bg-white p-3 text-sm">
+        <h2 className="mb-2 font-medium">Custom fields</h2>
+        <CustomFieldsPanel taggableType="COMPANY" taggableId={company.id} />
+      </section>
 
       <section>
         <h2 className="mb-2 font-medium">Contacts</h2>

@@ -9,6 +9,8 @@ import SkillPicker from "../components/SkillPicker";
 import RoleTypePicker from "../components/RoleTypePicker";
 import LinkPersonModal from "../components/LinkPersonModal";
 import ReflectionPanel from "../components/ReflectionPanel";
+import TagPicker from "../components/TagPicker";
+import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import { fullName } from "../lib/personName";
 
 interface Person {
@@ -1056,6 +1058,21 @@ export function PersonDetail() {
               </button>
             )}
           </div>
+        </section>
+
+        <section className="rounded border bg-white p-3 text-sm">
+          <h2 className="mb-2 font-medium">Tags</h2>
+          <TagPicker
+            taggableType="PERSON"
+            taggableId={person.id}
+            attachedLinks={person.tags ?? []}
+            onChange={load}
+          />
+        </section>
+
+        <section className="rounded border bg-white p-3 text-sm">
+          <h2 className="mb-2 font-medium">Custom fields</h2>
+          <CustomFieldsPanel taggableType="PERSON" taggableId={person.id} />
         </section>
 
       {person.personType === "CANDIDATE" && (

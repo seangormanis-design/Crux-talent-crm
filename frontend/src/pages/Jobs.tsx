@@ -4,6 +4,8 @@ import { api } from "../api/client";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 import SkillPicker from "../components/SkillPicker";
 import RoleTypePicker from "../components/RoleTypePicker";
+import TagPicker from "../components/TagPicker";
+import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import { fullName } from "../lib/personName";
 
 interface Job {
@@ -377,6 +379,16 @@ export function JobDetail() {
             Mark as Placed
           </button>
         )}
+      </section>
+
+      <section className="rounded border bg-white p-3">
+        <h2 className="mb-2 font-medium">Tags</h2>
+        <TagPicker taggableType="JOB" taggableId={job.id} attachedLinks={job.tags ?? []} onChange={load} />
+      </section>
+
+      <section className="rounded border bg-white p-3">
+        <h2 className="mb-2 font-medium">Custom fields</h2>
+        <CustomFieldsPanel taggableType="JOB" taggableId={job.id} />
       </section>
 
       <section>
