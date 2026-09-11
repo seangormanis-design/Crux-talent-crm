@@ -8,6 +8,7 @@ import InlineField from "../components/InlineField";
 import SkillPicker from "../components/SkillPicker";
 import RoleTypePicker from "../components/RoleTypePicker";
 import LinkPersonModal from "../components/LinkPersonModal";
+import ReflectionPanel from "../components/ReflectionPanel";
 import { fullName } from "../lib/personName";
 
 interface Person {
@@ -684,6 +685,7 @@ export function PersonDetail() {
   const [person, setPerson] = useState<any>(null);
   const [note, setNote] = useState("");
   const [qualificationSections, setQualificationSections] = useState<Record<string, string>>({});
+  const [transcript, setTranscript] = useState("");
   const [interactionType, setInteractionType] = useState("PHONE_CALL");
   const [interactionJobId, setInteractionJobId] = useState("");
   const [interactionCompanyId, setInteractionCompanyId] = useState("");
@@ -692,6 +694,8 @@ export function PersonDetail() {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [reflectingId, setReflectingId] = useState<string | null>(null);
+  const [reflectError, setReflectError] = useState<string | null>(null);
 
   function load() {
     api.get(`/api/people/${id}`).then((p: any) => {
@@ -727,14 +731,22 @@ export function PersonDetail() {
       notes,
       jobId: interactionJobId || undefined,
       companyId: interactionCompanyId || undefined,
+      ...(interactionType === "QUALIFICATION_CALL" && transcript.trim() ? { transcript: transcript.trim() } : {}),
       // Only send followUpAt if the user actually touched it — omitting the
       // key means "leave the existing reminder alone" on the backend.
       ...(interactionFollowUpAt ? { followUpAt: interactionFollowUpAt } : {}),
     });
     setNote("");
     setQualificationSections({});
+    setTranscript("");
     setInteractionFollowUpAt("");
     load();
+  }
+
+  function onTranscriptFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => setTranscript(String(reader.result ?? ""));
+    reader.readAsText(file);
   }
 
   async function runExtractIntelligence(interactionId: string) {
@@ -748,6 +760,24 @@ export function PersonDetail() {
     } finally {
       setExtractingId(null);
     }
+  }
+
+  async function runReflect(interactionId: string) {
+    setReflectingId(interactionId);
+    setReflectError(null);
+    try {
+      await api.post(`/api/interactions/${interactionId}/reflect`);
+      load();
+    } catch (err) {
+      setReflectError(err instanceof Error ? err.message : "Reflection failed");
+    } finally {
+      setReflectingId(null);
+    }
+  }
+
+  async function submitReflectionFeedback(interactionId: string, reaction: "UP" | "DOWN", comment?: string) {
+    await api.post(`/api/interactions/${interactionId}/reflection/feedback`, { reaction, comment });
+    load();
   }
 
   async function onToggleArchive() {
@@ -987,6 +1017,7 @@ export function PersonDetail() {
                 setInteractionType(e.target.value);
                 setNote("");
                 setQualificationSections({});
+                setTranscript("");
               }}
             >
               {INTERACTION_TYPE_OPTIONS.map((t) => (
@@ -1035,6 +1066,26 @@ export function PersonDetail() {
                   />
                 </label>
               ))}
+              <label className="block text-sm sm:col-span-2">
+                <span className="mb-0.5 block text-xs font-medium uppercase text-slate-500">Teams transcript</span>
+                <span className="mb-1 block text-xs text-slate-400">
+                  Optional — paste it in, or upload the .txt/.vtt file, if one's available. Enables a call reflection
+                  based on what was actually said, not just what got written down.
+                </span>
+                <textarea
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  placeholder="Paste transcript text here (optional)"
+                  rows={3}
+                  value={transcript}
+                  onChange={(e) => setTranscript(e.target.value)}
+                />
+                <input
+                  type="file"
+                  accept=".txt,.vtt"
+                  className="mt-1 text-xs"
+                  onChange={(e) => e.target.files?.[0] && onTranscriptFile(e.target.files[0])}
+                />
+              </label>
             </div>
           ) : (
             <textarea
@@ -1066,11 +1117,15 @@ export function PersonDetail() {
           {person.linkedPerson && <span className="ml-1 text-xs font-normal text-slate-400">(combined with linked record)</span>}
         </h2>
         {extractError && <p className="mb-2 text-sm text-red-600">{extractError}</p>}
+        {reflectError && <p className="mb-2 text-sm text-red-600">{reflectError}</p>}
         <ul className="space-y-1 text-sm">
           {(person.combinedInteractions ?? person.interactions)?.map((i: any) => (
             <li key={i.id} className="rounded border bg-white p-2">
               <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
               {i.type.replaceAll("_", " ")} — <span className="whitespace-pre-wrap">{i.notes}</span>
+              {i.transcript && (
+                <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">transcript attached</span>
+              )}
               {person.linkedPerson && i.sourcePersonId === person.linkedPerson.id && (
                 <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
                   via {fullName(person.linkedPerson)}
@@ -1091,6 +1146,14 @@ export function PersonDetail() {
                         ? "Re-extract intelligence"
                         : "Extract Intelligence"}
                   </button>
+                  {i.type === "QUALIFICATION_CALL" && (
+                    <ReflectionPanel
+                      reflection={i.reflection}
+                      reflecting={reflectingId === i.id}
+                      onReflect={() => runReflect(i.id)}
+                      onFeedback={(reaction, comment) => submitReflectionFeedback(i.id, reaction, comment)}
+                    />
+                  )}
                 </div>
               )}
             </li>

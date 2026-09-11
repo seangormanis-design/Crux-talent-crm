@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: "/jobs", label: "Jobs" },
   { to: "/pipeline", label: "Pipeline" },
   { to: "/placements", label: "Placements" },
+  { to: "/call-profile", label: "Call Profile" },
 ];
 
 export default function Layout() {

@@ -21,6 +21,7 @@ model User {
 
   interactions Interaction[]
   stageChanges StageChange[]
+  callProfile  UserCallProfile?
 
   @@map("users")
 }
@@ -432,7 +433,13 @@ model Interaction {
   createdBy   User?   @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
 
+  // Optional Teams call transcript, pasted or uploaded alongside the note —
+  // when present, a call reflection is based on what was actually said, not
+  // just what got written down.
+  transcript String? @db.Text
+
   intelligence InteractionIntelligence?
+  reflection   CallReflection?
 
   @@map("interactions")
   @@index([personId])
@@ -458,6 +465,71 @@ model InteractionIntelligence {
   createdAt DateTime @default(now())
 
   @@map("interaction_intelligence")
+}
+
+enum ReflectionBasis {
+  TRANSCRIPT
+  NOTE_ONLY
+}
+
+enum FeedbackReaction {
+  UP
+  DOWN
+}
+
+// A private, constructive critique of a Qualification Call — never a score.
+// One per interaction (re-running replaces it, same derived-artifact idiom
+// as InteractionIntelligence); `content` holds the structured reflection
+// (thin sections, cross-section signals, the five core commercial
+// questions, and a short closing summary).
+model CallReflection {
+  id            String      @id @default(uuid())
+  interactionId String      @unique
+  interaction   Interaction @relation(fields: [interactionId], references: [id], onDelete: Cascade)
+
+  basis   ReflectionBasis
+  content Json
+  model   String
+
+  createdAt DateTime @default(now())
+
+  feedback CallReflectionFeedback?
+
+  @@map("call_reflections")
+}
+
+// The user's reaction to one reflection — the raw signal a rolling personal
+// profile gets summarised from.
+model CallReflectionFeedback {
+  id           String         @id @default(uuid())
+  reflectionId String         @unique
+  reflection   CallReflection @relation(fields: [reflectionId], references: [id], onDelete: Cascade)
+
+  reaction FeedbackReaction
+  comment  String?
+
+  createdAt DateTime @default(now())
+
+  @@map("call_reflection_feedback")
+}
+
+// A single rolling summary per user of the patterns in their call-review
+// feedback — what tends to get missed, what's already done well, and what
+// kinds of feedback they've dismissed as not useful. Regenerated (not
+// appended) each time enough new feedback has accumulated, and fed as
+// context into every future reflection so suggestions get more tailored
+// over time instead of repeating the same generic notes.
+model UserCallProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  summary String @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_call_profiles")
 }
 
 // ─────────────────────────────────────────────────────────────

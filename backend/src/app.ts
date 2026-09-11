@@ -12,6 +12,7 @@ import { jobsRouter } from "./routes/jobs";
 import { pipelineRouter } from "./routes/pipeline";
 import { documentsRouter } from "./routes/documents";
 import { interactionsRouter } from "./routes/interactions";
+import { callProfileRouter } from "./routes/callProfile";
 import { placementsRouter } from "./routes/placements";
 import { tagsRouter } from "./routes/tags";
 import { searchRouter } from "./routes/search";
@@ -40,6 +41,7 @@ export function buildApp() {
   app.use("/api/pipeline", requireAuth, pipelineRouter);
   app.use("/api/documents", requireAuth, documentsRouter);
   app.use("/api/interactions", requireAuth, interactionsRouter);
+  app.use("/api/call-profile", requireAuth, callProfileRouter);
   app.use("/api/placements", requireAuth, placementsRouter);
   app.use("/api/tags", requireAuth, tagsRouter);
   app.use("/api/search", requireAuth, searchRouter);
