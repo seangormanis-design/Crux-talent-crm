@@ -326,26 +326,43 @@ export function PeopleList() {
           <Link to="/import?type=candidate" className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100">
             Import CSV
           </Link>
-          <button onClick={() => setShowForm((s) => !s)} className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white">
-            {showForm ? "Cancel" : "New person"}
-          </button>
+          {showForm ? (
+            <button onClick={() => setShowForm(false)} className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100">
+              Cancel
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  setNewType("CANDIDATE");
+                  setNewCompany(null);
+                  setShowForm(true);
+                }}
+                className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white"
+              >
+                Add new Candidate
+              </button>
+              <button
+                onClick={() => {
+                  setNewType("CLIENT_CONTACT");
+                  setNewCompany(null);
+                  setShowForm(true);
+                }}
+                className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white"
+              >
+                Add new Client Contact
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {showForm && (
         <form onSubmit={onCreate} className="mb-4 space-y-4 rounded border bg-white p-3">
+          <p className="text-xs font-medium uppercase text-slate-400">
+            New {newType === "CANDIDATE" ? "Candidate" : "Client Contact"}
+          </p>
           <div className="flex gap-2">
-            <select
-              className="rounded border px-2 py-2 text-sm"
-              value={newType}
-              onChange={(e) => {
-                setNewType(e.target.value as any);
-                setNewCompany(null);
-              }}
-            >
-              <option value="CANDIDATE">Candidate</option>
-              <option value="CLIENT_CONTACT">Client contact</option>
-            </select>
             <input
               className="flex-1 rounded border px-3 py-2 text-sm"
               placeholder="First name"
