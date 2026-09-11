@@ -49,7 +49,12 @@ companiesRouter.get("/:id", async (req, res) => {
   const company = await prisma.company.findUnique({
     where: { id: req.params.id },
     include: {
-      contacts: true,
+      // Most-recent-first so the frontend can read contact[0]'s interaction
+      // as "last contacted" without re-sorting.
+      contacts: {
+        where: { deletedAt: null },
+        include: { interactions: { orderBy: { occurredAt: "desc" }, take: 1 } },
+      },
       jobs: true,
       documents: { include: { versions: true } },
       interactions: { orderBy: { occurredAt: "desc" } },

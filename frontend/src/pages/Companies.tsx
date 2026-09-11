@@ -1,9 +1,10 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import InlineField from "../components/InlineField";
 import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
+import DuplicateWarningModal from "../components/DuplicateWarningModal";
 import { fullName } from "../lib/personName";
 
 interface Company {
@@ -133,6 +134,14 @@ export function CompaniesList() {
 export function CompanyDetail() {
   const { id } = useParams();
   const [company, setCompany] = useState<any>(null);
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [contactFirstName, setContactFirstName] = useState("");
+  const [contactSurname, setContactSurname] = useState("");
+  const [contactWorkEmail, setContactWorkEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactJobTitle, setContactJobTitle] = useState("");
+  const [contactDuplicateMatches, setContactDuplicateMatches] = useState<any[] | null>(null);
+  const [creatingContact, setCreatingContact] = useState(false);
 
   function load() {
     api.get(`/api/companies/${id}`).then(setCompany);
@@ -149,6 +158,60 @@ export function CompanyDetail() {
     await api.post(`/api/companies/${id}/${company.archivedAt ? "unarchive" : "archive"}`);
     load();
   }
+
+  function resetAddContactForm() {
+    setContactFirstName("");
+    setContactSurname("");
+    setContactWorkEmail("");
+    setContactPhone("");
+    setContactJobTitle("");
+    setShowAddContact(false);
+    setContactDuplicateMatches(null);
+  }
+
+  async function createContact(linkedPersonId?: string) {
+    setCreatingContact(true);
+    try {
+      await api.post("/api/people", {
+        personType: "CLIENT_CONTACT",
+        firstName: contactFirstName,
+        surname: contactSurname || undefined,
+        workEmail: contactWorkEmail || undefined,
+        phone: contactPhone || undefined,
+        jobTitle: contactJobTitle || undefined,
+        companyId: id,
+        linkedPersonId,
+      });
+      resetAddContactForm();
+      load();
+    } finally {
+      setCreatingContact(false);
+    }
+  }
+
+  async function onAddContactSubmit(e: FormEvent) {
+    e.preventDefault();
+    const { matches } = await api.post<{ matches: any[] }>("/api/people/check-duplicates", {
+      firstName: contactFirstName,
+      surname: contactSurname || undefined,
+      workEmail: contactWorkEmail || undefined,
+      phone: contactPhone || undefined,
+    });
+    if (matches.length) setContactDuplicateMatches(matches);
+    else await createContact();
+  }
+
+  const sortedContacts = useMemo(() => {
+    const contacts = company?.contacts ?? [];
+    return [...contacts].sort((a: any, b: any) => {
+      const aDate = a.interactions?.[0]?.occurredAt;
+      const bDate = b.interactions?.[0]?.occurredAt;
+      if (!aDate && !bDate) return 0;
+      if (!aDate) return 1;
+      if (!bDate) return -1;
+      return new Date(bDate).getTime() - new Date(aDate).getTime();
+    });
+  }, [company]);
 
   if (!company) return <p>Loading...</p>;
 
@@ -232,17 +295,94 @@ export function CompanyDetail() {
         <CustomFieldsPanel taggableType="COMPANY" taggableId={company.id} />
       </section>
 
-      <section>
-        <h2 className="mb-2 font-medium">Contacts</h2>
-        <ul className="space-y-1 text-sm">
-          {company.contacts?.map((p: any) => (
-            <li key={p.id}>
-              <Link to={`/people/${p.id}`} className="text-blue-600">
-                {fullName(p)}
-              </Link>{" "}
-              — {p.jobTitle}
-            </li>
-          ))}
+      <section className="rounded border bg-white p-3 text-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-medium">Contacts</h2>
+          <button
+            type="button"
+            onClick={() => setShowAddContact((s) => !s)}
+            className="rounded border px-2 py-1 text-xs hover:bg-slate-100"
+          >
+            {showAddContact ? "Cancel" : "+ Add contact"}
+          </button>
+        </div>
+
+        {showAddContact && (
+          <form onSubmit={onAddContactSubmit} className="mb-3 space-y-2 rounded border bg-slate-50 p-3">
+            <div className="flex flex-wrap gap-2">
+              <input
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="First name"
+                value={contactFirstName}
+                onChange={(e) => setContactFirstName(e.target.value)}
+                required
+                autoFocus
+              />
+              <input
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="Surname"
+                value={contactSurname}
+                onChange={(e) => setContactSurname(e.target.value)}
+              />
+              <input
+                type="email"
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="Work email"
+                value={contactWorkEmail}
+                onChange={(e) => setContactWorkEmail(e.target.value)}
+              />
+              <input
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="Phone"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+              />
+              <input
+                className="flex-1 rounded border px-3 py-2 text-sm"
+                placeholder="Job title"
+                value={contactJobTitle}
+                onChange={(e) => setContactJobTitle(e.target.value)}
+              />
+            </div>
+            <button disabled={creatingContact} className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-50">
+              {creatingContact ? "Adding..." : "Add contact"}
+            </button>
+          </form>
+        )}
+
+        {contactDuplicateMatches && (
+          <DuplicateWarningModal
+            candidate={{ firstName: contactFirstName, surname: contactSurname, workEmail: contactWorkEmail, phone: contactPhone }}
+            matches={contactDuplicateMatches}
+            onUseExisting={async (personId) => {
+              await api.patch(`/api/people/${personId}`, { companyId: id, jobTitle: contactJobTitle || undefined });
+              resetAddContactForm();
+              load();
+            }}
+            onLinkNew={(personId) => createContact(personId)}
+            onCreateAnyway={() => createContact()}
+            onCancel={() => setContactDuplicateMatches(null)}
+          />
+        )}
+
+        <ul className="space-y-1">
+          {sortedContacts.map((p: any) => {
+            const lastInteraction = p.interactions?.[0]?.occurredAt;
+            return (
+              <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
+                <span>
+                  <Link to={`/people/${p.id}`} className="text-blue-600">
+                    {fullName(p)}
+                  </Link>{" "}
+                  {p.jobTitle && <span className="text-slate-500">— {p.jobTitle}</span>}
+                </span>
+                <span className="text-xs text-slate-400">
+                  {lastInteraction ? `Last contacted ${new Date(lastInteraction).toLocaleDateString()}` : "No interactions yet"}
+                </span>
+              </li>
+            );
+          })}
+          {!sortedContacts.length && <li className="text-slate-400">No contacts linked yet</li>}
         </ul>
       </section>
 
