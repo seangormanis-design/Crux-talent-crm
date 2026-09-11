@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { fullName } from "../lib/personName";
+import CvDropCreatePanel from "../components/CvDropCreatePanel";
 
 interface StageCount {
   stage: string;
@@ -35,7 +36,10 @@ export default function Dashboard() {
   if (!data) return <p>Loading...</p>;
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div className="space-y-6">
+      <CvDropCreatePanel />
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <section>
         <h2 className="mb-3 text-lg font-semibold">Pipeline by stage</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -107,6 +111,7 @@ export default function Dashboard() {
           ))}
         </FeedBlock>
       </section>
+      </div>
     </div>
   );
 }
