@@ -132,10 +132,14 @@ export function CompaniesList() {
   );
 }
 
+const COMPANY_TABS = ["Contacts", "Jobs", "Placements", "Interactions"] as const;
+type CompanyTab = (typeof COMPANY_TABS)[number];
+
 export function CompanyDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [company, setCompany] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<CompanyTab>("Contacts");
   const [showAddContact, setShowAddContact] = useState(false);
   const [showAddJob, setShowAddJob] = useState(false);
   const [showClosedJobs, setShowClosedJobs] = useState(false);
@@ -180,6 +184,9 @@ export function CompanyDetail() {
       return new Date(bDate).getTime() - new Date(aDate).getTime();
     });
   }, [company]);
+
+  const placements = company?.placements ?? [];
+  const totalPlacementFees = placements.reduce((sum: number, p: any) => sum + Number(p.feeValue || 0), 0);
 
   if (!company) return <p>Loading...</p>;
 
@@ -263,108 +270,177 @@ export function CompanyDetail() {
         <CustomFieldsPanel taggableType="COMPANY" taggableId={company.id} />
       </section>
 
-      <section className="rounded border bg-white p-3 text-sm">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-medium">Contacts</h2>
-          <button
-            type="button"
-            onClick={() => setShowAddContact((s) => !s)}
-            className="rounded border px-2 py-1 text-xs hover:bg-slate-100"
-          >
-            {showAddContact ? "Cancel" : "+ Add contact"}
-          </button>
-        </div>
-
-        {showAddContact && (
-          <PersonCreateForm
-            personType="CLIENT_CONTACT"
-            initialCompany={{ id: company.id, name: company.name }}
-            onCreated={(person) => navigate(`/people/${person.id}`)}
-          />
-        )}
-
-        <ul className="space-y-1">
-          {sortedContacts.map((p: any) => {
-            const lastInteraction = p.interactions?.[0]?.occurredAt;
-            return (
-              <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
-                <span>
-                  <Link to={`/people/${p.id}`} className="text-blue-600">
-                    {fullName(p)}
-                  </Link>{" "}
-                  {p.jobTitle && <span className="text-slate-500">— {p.jobTitle}</span>}
-                </span>
-                <span className="text-xs text-slate-400">
-                  {lastInteraction ? `Last contacted ${new Date(lastInteraction).toLocaleDateString()}` : "No interactions yet"}
-                </span>
-              </li>
-            );
-          })}
-          {!sortedContacts.length && <li className="text-slate-400">No contacts linked yet</li>}
-        </ul>
-      </section>
-
-      <section className="rounded border bg-white p-3 text-sm">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-medium">Jobs</h2>
-          <button
-            type="button"
-            onClick={() => setShowAddJob((s) => !s)}
-            className="rounded border px-2 py-1 text-xs hover:bg-slate-100"
-          >
-            {showAddJob ? "Cancel" : "+ Add job"}
-          </button>
-        </div>
-
-        {showAddJob && (
-          <JobCreateForm
-            initialCompanyId={company.id}
-            onCreated={() => {
-              setShowAddJob(false);
-              load();
-            }}
-          />
-        )}
-
-        <ul className="space-y-1">
-          {activeJobs.map((j: any) => (
-            <JobRow key={j.id} job={j} />
+      <div className="border-b">
+        <nav className="-mb-px flex gap-4">
+          {COMPANY_TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`border-b-2 px-1 py-2 text-sm font-medium ${
+                activeTab === tab
+                  ? "border-slate-900 text-slate-900"
+                  : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+              }`}
+            >
+              {tab}
+              {tab === "Contacts" && sortedContacts.length > 0 && ` (${sortedContacts.length})`}
+              {tab === "Jobs" && activeJobs.length + closedJobs.length > 0 && ` (${activeJobs.length + closedJobs.length})`}
+              {tab === "Placements" && placements.length > 0 && ` (${placements.length})`}
+              {tab === "Interactions" && company.interactions?.length > 0 && ` (${company.interactions.length})`}
+            </button>
           ))}
-          {!activeJobs.length && !closedJobs.length && <li className="text-slate-400">No jobs linked yet</li>}
-          {!activeJobs.length && !!closedJobs.length && <li className="text-slate-400">No active jobs</li>}
-        </ul>
+        </nav>
+      </div>
 
-        {closedJobs.length > 0 && (
-          <div className="mt-2">
+      {activeTab === "Contacts" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-medium">Contacts</h2>
             <button
               type="button"
-              onClick={() => setShowClosedJobs((s) => !s)}
-              className="text-xs text-slate-500 hover:underline"
+              onClick={() => setShowAddContact((s) => !s)}
+              className="rounded border px-2 py-1 text-xs hover:bg-slate-100"
             >
-              {showClosedJobs ? "▾" : "▸"} Closed jobs ({closedJobs.length})
+              {showAddContact ? "Cancel" : "+ Add contact"}
             </button>
-            {showClosedJobs && (
-              <ul className="mt-1 space-y-1">
-                {closedJobs.map((j: any) => (
-                  <JobRow key={j.id} job={j} />
-                ))}
-              </ul>
+          </div>
+
+          {showAddContact && (
+            <PersonCreateForm
+              personType="CLIENT_CONTACT"
+              initialCompany={{ id: company.id, name: company.name }}
+              onCreated={(person) => navigate(`/people/${person.id}`)}
+            />
+          )}
+
+          <ul className="space-y-1">
+            {sortedContacts.map((p: any) => {
+              const lastInteraction = p.interactions?.[0]?.occurredAt;
+              return (
+                <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
+                  <span>
+                    <Link to={`/people/${p.id}`} className="text-blue-600">
+                      {fullName(p)}
+                    </Link>{" "}
+                    {p.jobTitle && <span className="text-slate-500">— {p.jobTitle}</span>}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {lastInteraction ? `Last contacted ${new Date(lastInteraction).toLocaleDateString()}` : "No interactions yet"}
+                  </span>
+                </li>
+              );
+            })}
+            {!sortedContacts.length && <li className="text-slate-400">No contacts linked yet</li>}
+          </ul>
+        </section>
+      )}
+
+      {activeTab === "Jobs" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-medium">Jobs</h2>
+            <button
+              type="button"
+              onClick={() => setShowAddJob((s) => !s)}
+              className="rounded border px-2 py-1 text-xs hover:bg-slate-100"
+            >
+              {showAddJob ? "Cancel" : "+ Add job"}
+            </button>
+          </div>
+
+          {showAddJob && (
+            <JobCreateForm
+              initialCompanyId={company.id}
+              onCreated={() => {
+                setShowAddJob(false);
+                load();
+              }}
+            />
+          )}
+
+          <ul className="space-y-1">
+            {activeJobs.map((j: any) => (
+              <JobRow key={j.id} job={j} />
+            ))}
+            {!activeJobs.length && !closedJobs.length && <li className="text-slate-400">No jobs linked yet</li>}
+            {!activeJobs.length && !!closedJobs.length && <li className="text-slate-400">No active jobs</li>}
+          </ul>
+
+          {closedJobs.length > 0 && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setShowClosedJobs((s) => !s)}
+                className="text-xs text-slate-500 hover:underline"
+              >
+                {showClosedJobs ? "▾" : "▸"} Closed jobs ({closedJobs.length})
+              </button>
+              {showClosedJobs && (
+                <ul className="mt-1 space-y-1">
+                  {closedJobs.map((j: any) => (
+                    <JobRow key={j.id} job={j} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {activeTab === "Placements" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-medium">Placements</h2>
+            {placements.length > 0 && (
+              <p className="text-xs text-slate-500">
+                Total fees:{" "}
+                <span className="font-medium text-slate-700">
+                  {totalPlacementFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </p>
             )}
           </div>
-        )}
-      </section>
+          <ul className="space-y-1">
+            {placements.map((p: any) => (
+              <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
+                <span>
+                  {p.candidate ? (
+                    <Link to={`/people/${p.candidate.id}`} className="text-blue-600">
+                      {fullName(p.candidate)}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}{" "}
+                  —{" "}
+                  <Link to={`/jobs/${p.job.id}`} className="text-blue-600">
+                    {p.job?.title}
+                  </Link>
+                </span>
+                <span className="text-xs text-slate-400">
+                  {p.feeValue} ({p.feeType.replaceAll("_", " ")}) · Placed {new Date(p.startDate).toLocaleDateString()}
+                </span>
+              </li>
+            ))}
+            {!placements.length && <li className="text-slate-400">No placements yet</li>}
+          </ul>
+        </section>
+      )}
 
-      <section>
-        <h2 className="mb-2 font-medium">Recent interactions</h2>
-        <ul className="space-y-1 text-sm">
-          {company.interactions?.map((i: any) => (
-            <li key={i.id}>
-              {i.type.replaceAll("_", " ")} — {new Date(i.occurredAt).toLocaleString()} —{" "}
-              <span className="whitespace-pre-wrap">{i.notes}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {activeTab === "Interactions" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <h2 className="mb-2 font-medium">Interactions</h2>
+          <ul className="space-y-1">
+            {company.interactions?.map((i: any) => (
+              <li key={i.id} className="rounded border px-2 py-1.5">
+                <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
+                {i.type.replaceAll("_", " ")} — <span className="whitespace-pre-wrap">{i.notes}</span>
+              </li>
+            ))}
+            {!company.interactions?.length && <li className="text-slate-400">No interactions yet</li>}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
