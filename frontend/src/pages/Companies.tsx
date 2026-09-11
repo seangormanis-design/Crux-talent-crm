@@ -217,6 +217,29 @@ export function CompanyDetail() {
         </button>
       </div>
 
+      <div className="border-b">
+        <nav className="-mb-px flex gap-4">
+          {COMPANY_TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`border-b-2 px-1 py-2 text-sm font-medium ${
+                activeTab === tab
+                  ? "border-slate-900 text-slate-900"
+                  : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+              }`}
+            >
+              {tab}
+              {tab === "Contacts" && sortedContacts.length > 0 && ` (${sortedContacts.length})`}
+              {tab === "Jobs" && activeJobs.length + closedJobs.length > 0 && ` (${activeJobs.length + closedJobs.length})`}
+              {tab === "Placements" && placements.length > 0 && ` (${placements.length})`}
+              {tab === "Interactions" && company.interactions?.length > 0 && ` (${company.interactions.length})`}
+            </button>
+          ))}
+        </nav>
+      </div>
+
       <section className="rounded border bg-white p-4 text-sm">
         <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
           <DetailRow label="Website">
@@ -269,29 +292,6 @@ export function CompanyDetail() {
         <h2 className="mb-2 font-medium">Custom fields</h2>
         <CustomFieldsPanel taggableType="COMPANY" taggableId={company.id} />
       </section>
-
-      <div className="border-b">
-        <nav className="-mb-px flex gap-4">
-          {COMPANY_TABS.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`border-b-2 px-1 py-2 text-sm font-medium ${
-                activeTab === tab
-                  ? "border-slate-900 text-slate-900"
-                  : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
-              }`}
-            >
-              {tab}
-              {tab === "Contacts" && sortedContacts.length > 0 && ` (${sortedContacts.length})`}
-              {tab === "Jobs" && activeJobs.length + closedJobs.length > 0 && ` (${activeJobs.length + closedJobs.length})`}
-              {tab === "Placements" && placements.length > 0 && ` (${placements.length})`}
-              {tab === "Interactions" && company.interactions?.length > 0 && ` (${company.interactions.length})`}
-            </button>
-          ))}
-        </nav>
-      </div>
 
       {activeTab === "Contacts" && (
         <section className="rounded border bg-white p-3 text-sm">
