@@ -745,6 +745,18 @@ export function PersonDetail() {
 
       <section className="rounded border bg-white p-4 text-sm">
           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+            <DetailRow label={person.personType === "CANDIDATE" ? "Current employer" : "Company"}>
+              {(person.personType === "CANDIDATE" ? person.currentEmployer : person.company) ? (
+                <Link
+                  to={`/companies/${(person.personType === "CANDIDATE" ? person.currentEmployer : person.company).id}`}
+                  className="inline-block rounded px-2 py-1 text-blue-600 hover:bg-slate-100"
+                >
+                  {(person.personType === "CANDIDATE" ? person.currentEmployer : person.company).name}
+                </Link>
+              ) : (
+                <span className="px-2 py-1 text-slate-400">Not set</span>
+              )}
+            </DetailRow>
             <DetailRow label="Work email">
               <InlineField
                 value={person.workEmail ?? ""}
