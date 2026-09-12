@@ -85,6 +85,16 @@ export default function OpportunityDetail() {
         )}
       </div>
 
+      {/* Target Contacts is the primary focus of a lightweight Opportunity —
+          a full-width bar, not a side column, with every contact's details
+          shown directly rather than tucked behind an expand click. */}
+      <TargetContactsPanel
+        opportunity={opportunity}
+        showAddContact={showAddContact}
+        setShowAddContact={setShowAddContact}
+        onChange={load}
+      />
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-4">
           <section className="rounded border bg-white p-3 text-sm">
@@ -107,7 +117,9 @@ export default function OpportunityDetail() {
               />
             </section>
           )}
+        </div>
 
+        <div className="space-y-4">
           {opportunity.stage === MEETING_STAGE && (
             <section className="rounded border bg-white p-3 text-sm">
               <h2 className="mb-2 font-medium">Meetings</h2>
@@ -133,15 +145,6 @@ export default function OpportunityDetail() {
               placeholder="Notes (optional)"
             />
           </section>
-        </div>
-
-        <div>
-          <TargetContactsPanel
-            opportunity={opportunity}
-            showAddContact={showAddContact}
-            setShowAddContact={setShowAddContact}
-            onChange={load}
-          />
         </div>
       </div>
     </div>
@@ -190,10 +193,10 @@ function TargetContactsPanel({
   }
 
   return (
-    <section className="rounded border bg-white p-3 text-sm">
-      <div className="mb-2 flex items-center justify-between">
+    <section className="w-full rounded border bg-white p-4 text-sm">
+      <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="font-medium">Target Contacts</h2>
+          <h2 className="text-base font-semibold">Target Contacts</h2>
           <p className="text-xs text-slate-500">
             Lightweight — just a name to start. Log activity against one exactly as you would a full Client Contact.
           </p>
@@ -201,16 +204,16 @@ function TargetContactsPanel({
         <button
           type="button"
           onClick={() => setShowAddContact(!showAddContact)}
-          className="shrink-0 rounded border px-2 py-1 text-xs hover:bg-slate-100"
+          className="shrink-0 rounded border px-3 py-1.5 text-xs hover:bg-slate-100"
         >
           {showAddContact ? "Cancel" : "+ Add target contact"}
         </button>
       </div>
 
       {showAddContact && (
-        <form onSubmit={addContact} className="mb-3 space-y-2 rounded border bg-slate-50 p-2">
+        <form onSubmit={addContact} className="mb-3 grid grid-cols-1 gap-2 rounded border bg-slate-50 p-3 sm:grid-cols-5">
           <input
-            className="w-full rounded border px-2 py-1.5 text-sm"
+            className="rounded border px-2 py-1.5 text-sm sm:col-span-2"
             placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -218,42 +221,54 @@ function TargetContactsPanel({
             autoFocus
           />
           <input
-            className="w-full rounded border px-2 py-1.5 text-sm"
+            className="rounded border px-2 py-1.5 text-sm"
             placeholder="Job title (optional)"
             value={jobTitle}
             onChange={(e) => setJobTitle(e.target.value)}
           />
           <input
             type="email"
-            className="w-full rounded border px-2 py-1.5 text-sm"
+            className="rounded border px-2 py-1.5 text-sm"
             placeholder="Email (optional)"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
           <input
             type="tel"
-            className="w-full rounded border px-2 py-1.5 text-sm"
+            className="rounded border px-2 py-1.5 text-sm"
             placeholder="Phone (optional)"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
           <input
-            className="w-full rounded border px-2 py-1.5 text-sm"
+            className="rounded border px-2 py-1.5 text-sm sm:col-span-4"
             placeholder="LinkedIn URL (optional)"
             value={linkedinUrl}
             onChange={(e) => setLinkedinUrl(e.target.value)}
           />
-          <button className="rounded bg-slate-900 px-3 py-1.5 text-xs text-white">Add</button>
+          <button className="rounded bg-slate-900 px-3 py-1.5 text-xs text-white sm:col-span-1">Add</button>
         </form>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {opportunity.targetContacts.map((tc) => (
           <TargetContactRow key={tc.id} contact={tc} onRemove={() => removeContact(tc.id)} onChange={onChange} />
         ))}
         {!opportunity.targetContacts.length && <p className="text-slate-400">No target contacts yet</p>}
       </div>
     </section>
+  );
+}
+
+// A labeled field shown only when the value is present — used so every
+// filled-in Target Contact detail is plainly visible (no truncation, no
+// click-to-reveal), while absent fields just don't take up space.
+function ContactField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-baseline gap-1">
+      <span className="text-xs uppercase text-slate-400">{label}</span>
+      <span className="text-slate-700">{children}</span>
+    </span>
   );
 }
 
@@ -279,33 +294,44 @@ function TargetContactRow({
   }
 
   return (
-    <div className={`rounded border p-2 ${!contact.convertedPersonId ? "border-dashed border-slate-300" : ""}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-medium">
+    <div className={`w-full rounded border p-3 ${!contact.convertedPersonId ? "border-dashed border-slate-300" : ""}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="space-y-1.5">
+          <p className="text-base font-medium">
             {contact.name}
-            {contact.jobTitle && <span className="font-normal text-slate-500"> — {contact.jobTitle}</span>}
+            {contact.jobTitle && <span className="ml-1 font-normal text-slate-500">— {contact.jobTitle}</span>}
             {!contact.convertedPersonId && (
-              <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[10px] font-normal uppercase text-slate-500">
+              <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-normal uppercase text-slate-500">
                 Prospect
               </span>
             )}
           </p>
-          <div className="flex flex-wrap gap-2 text-xs">
+          <div className="flex flex-wrap gap-x-5 gap-y-1">
             {contact.email && (
-              <a href={`mailto:${contact.email}`} className="text-slate-500 hover:underline">
-                {contact.email}
-              </a>
+              <ContactField label="Email">
+                <a href={`mailto:${contact.email}`} className="hover:underline">
+                  {contact.email}
+                </a>
+              </ContactField>
             )}
             {contact.phone && (
-              <a href={`tel:${contact.phone}`} className="text-slate-500 hover:underline">
-                {contact.phone}
-              </a>
+              <ContactField label="Phone">
+                <a href={`tel:${contact.phone}`} className="hover:underline">
+                  {contact.phone}
+                </a>
+              </ContactField>
             )}
             {contact.linkedinUrl && (
-              <a href={contact.linkedinUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                LinkedIn ↗
-              </a>
+              <ContactField label="LinkedIn">
+                <a
+                  href={contact.linkedinUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  {contact.linkedinUrl.replace(/^https?:\/\//, "")} ↗
+                </a>
+              </ContactField>
             )}
             {contact.convertedPerson && (
               <Link
@@ -337,8 +363,12 @@ function TargetContactRow({
       )}
 
       {logging ? (
-        <form onSubmit={logActivity} className="mt-2 space-y-1">
-          <select className="w-full rounded border px-2 py-1 text-xs" value={type} onChange={(e) => setType(e.target.value)}>
+        <form onSubmit={logActivity} className="mt-2 flex flex-wrap items-start gap-2">
+          <select
+            className="rounded border px-2 py-1 text-xs"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+          >
             {INTERACTION_TYPE_OPTIONS.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
@@ -346,9 +376,9 @@ function TargetContactRow({
             ))}
           </select>
           <textarea
-            className="w-full rounded border px-2 py-1 text-xs"
+            className="min-w-[16rem] flex-1 rounded border px-2 py-1 text-xs"
             placeholder="Notes"
-            rows={2}
+            rows={1}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
@@ -356,7 +386,11 @@ function TargetContactRow({
             <button type="submit" className="rounded bg-slate-900 px-2 py-1 text-xs text-white">
               Save
             </button>
-            <button type="button" onClick={() => setLogging(false)} className="rounded border px-2 py-1 text-xs hover:bg-slate-100">
+            <button
+              type="button"
+              onClick={() => setLogging(false)}
+              className="rounded border px-2 py-1 text-xs hover:bg-slate-100"
+            >
               Cancel
             </button>
           </div>
