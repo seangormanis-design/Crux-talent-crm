@@ -51,7 +51,7 @@ function toPrismaData(input: z.infer<typeof jobSchema>) {
 }
 
 jobsRouter.get("/", async (req, res) => {
-  const { q, stage, companyId, includeArchived, qualityRating } = req.query;
+  const { q, stage, companyId, includeArchived, qualityRating, includeClosed } = req.query;
 
   // Combinable multi-select: ?qualityRating=A&qualityRating=B, or a single value.
   const ratings = qualityRating
@@ -62,8 +62,18 @@ jobsRouter.get("/", async (req, res) => {
     where: {
       AND: [
         includeArchived === "true" ? {} : { archivedAt: null },
-        q ? { title: { contains: String(q), mode: "insensitive" } } : {},
-        stage ? { stage: stage as any } : {},
+        q
+          ? {
+              OR: [
+                { title: { contains: String(q), mode: "insensitive" } },
+                { company: { name: { contains: String(q), mode: "insensitive" } } },
+              ],
+            }
+          : {},
+        // An explicit stage pick always wins; otherwise Placed/Rejected jobs
+        // are hidden by default so the day-to-day list stays to what still
+        // needs attention, and shown only when the caller asks for them.
+        stage ? { stage: stage as any } : includeClosed === "true" ? {} : { stage: { notIn: Array.from(CLOSED_JOB_STAGES) as any } },
         companyId ? { companyId: String(companyId) } : {},
         ratings.length ? { qualityRating: { in: ratings as any } } : {},
       ],

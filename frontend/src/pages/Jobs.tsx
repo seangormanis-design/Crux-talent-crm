@@ -101,20 +101,48 @@ export function JobsList() {
   const [showForm, setShowForm] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [ratingFilter, setRatingFilter] = useState<Set<string>>(new Set());
+  const [q, setQ] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [stageFilter, setStageFilter] = useState("");
+  // Off by default so the day-to-day list only shows jobs that still need
+  // attention — Placed/Rejected jobs are done and would just be clutter.
+  const [includeClosed, setIncludeClosed] = useState(false);
+  const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
   // Off by default (server order = most recently touched first); toggling
   // this re-sorts client-side to surface the most neglected jobs instead —
   // the "days since last update" column is the whole point of that view.
   const [staleFirst, setStaleFirst] = useState(false);
 
-  function load(archived = showArchived, ratings = ratingFilter) {
+  function load(opts: {
+    archived?: boolean;
+    ratings?: Set<string>;
+    query?: string;
+    company?: string;
+    stage?: string;
+    closed?: boolean;
+  } = {}) {
+    const archived = opts.archived ?? showArchived;
+    const ratings = opts.ratings ?? ratingFilter;
+    const query = opts.query ?? q;
+    const company = opts.company ?? companyId;
+    const stage = opts.stage ?? stageFilter;
+    const closed = opts.closed ?? includeClosed;
+
     const params = new URLSearchParams();
     if (archived) params.set("includeArchived", "true");
     for (const r of ratings) params.append("qualityRating", r);
+    if (query) params.set("q", query);
+    if (company) params.set("companyId", company);
+    if (stage) params.set("stage", stage);
+    if (closed) params.set("includeClosed", "true");
     const qs = params.toString();
     api.get<Job[]>(`/api/jobs${qs ? `?${qs}` : ""}`).then(setJobs);
   }
 
   useEffect(() => load(), []);
+  useEffect(() => {
+    api.get<{ id: string; name: string }[]>("/api/companies").then(setCompanyOptions);
+  }, []);
 
   const displayedJobs = useMemo(() => {
     if (!staleFirst) return jobs;
@@ -126,7 +154,7 @@ export function JobsList() {
       const next = new Set(prev);
       if (next.has(rating)) next.delete(rating);
       else next.add(rating);
-      load(showArchived, next);
+      load({ ratings: next });
       return next;
     });
   }
@@ -150,13 +178,67 @@ export function JobsList() {
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
+        <input
+          className="w-full max-w-xs rounded border px-3 py-2 text-sm"
+          placeholder="Search title or company..."
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            load({ query: e.target.value });
+          }}
+        />
+
+        <select
+          className="rounded border px-2 py-2 text-sm"
+          value={companyId}
+          onChange={(e) => {
+            setCompanyId(e.target.value);
+            load({ company: e.target.value });
+          }}
+        >
+          <option value="">All companies</option>
+          {companyOptions.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="rounded border px-2 py-2 text-sm"
+          value={stageFilter}
+          onChange={(e) => {
+            setStageFilter(e.target.value);
+            load({ stage: e.target.value });
+          }}
+        >
+          <option value="">All stages</option>
+          {STAGES.map((s) => (
+            <option key={s} value={s}>
+              {s.replaceAll("_", " ")}
+            </option>
+          ))}
+        </select>
+
+        <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={includeClosed}
+            onChange={(e) => {
+              setIncludeClosed(e.target.checked);
+              load({ closed: e.target.checked });
+            }}
+          />
+          Show closed (Placed/Rejected) jobs
+        </label>
+
         <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">
           <input
             type="checkbox"
             checked={showArchived}
             onChange={(e) => {
               setShowArchived(e.target.checked);
-              load(e.target.checked);
+              load({ archived: e.target.checked });
             }}
           />
           Show archived
@@ -183,7 +265,7 @@ export function JobsList() {
               type="button"
               onClick={() => {
                 setRatingFilter(new Set());
-                load(showArchived, new Set());
+                load({ ratings: new Set() });
               }}
               className="text-blue-600 hover:underline"
             >
