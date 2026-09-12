@@ -277,6 +277,11 @@ model Job {
 
   stage JobStage @default(POTENTIAL_LEAD)
 
+  // Free-text alternative/complement to an uploaded Job Spec document — some
+  // clients just email the details rather than sending a formal doc. No
+  // version history: a single field that's overwritten on edit.
+  jobSpecText String?
+
   // Archive (soft-delete): hidden from default views but never hard-deleted —
   // jobs anchor pipeline/placement/interaction history.
   archivedAt DateTime?

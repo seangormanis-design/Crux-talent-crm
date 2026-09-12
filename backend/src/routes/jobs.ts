@@ -22,6 +22,7 @@ const jobSchema = z.object({
   essentialSkillIds: z.array(z.string().uuid()).optional(),
   idealSkillIds: z.array(z.string().uuid()).optional(),
   roleTypeIds: z.array(z.string().uuid()).optional(),
+  jobSpecText: z.string().optional(),
 });
 
 const JOB_STAGES = [

@@ -799,16 +799,93 @@ export function JobDetail() {
       </section>
       </div>
 
-      <div className="lg:sticky lg:top-6 lg:self-start">
+      <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
         <DocumentPreviewPanel
-          label="Job Spec"
+          label="Job Spec Document"
           documentType="JOB_SPEC"
           documents={job.documents ?? []}
           jobId={job.id}
           onChange={load}
         />
+        <JobSpecTextPanel job={job} onChange={load} />
       </div>
       </div>
     </div>
+  );
+}
+
+// Free-text alternative/complement to the uploaded Job Spec document — no
+// version history, just a single field overwritten on save.
+function JobSpecTextPanel({ job, onChange }: { job: any; onChange: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(job.jobSpecText ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setText(job.jobSpecText ?? "");
+  }, [job.jobSpecText]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch(`/api/jobs/${job.id}`, { jobSpecText: text });
+      onChange();
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="rounded border bg-white p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-medium">Job Spec Notes/Text</h2>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="rounded border px-2 py-1 text-xs hover:bg-slate-100"
+          >
+            {job.jobSpecText ? "Edit" : "Add notes"}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            className="h-48 w-full rounded border p-2 text-sm"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Paste or type the job spec here..."
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={save}
+              disabled={saving}
+              className="rounded bg-slate-900 px-3 py-1.5 text-xs text-white hover:bg-slate-700 disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+            <button
+              onClick={() => {
+                setText(job.jobSpecText ?? "");
+                setEditing(false);
+              }}
+              disabled={saving}
+              className="rounded border px-3 py-1.5 text-xs hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : job.jobSpecText ? (
+        <p className="whitespace-pre-wrap text-sm">{job.jobSpecText}</p>
+      ) : (
+        <p className="rounded border border-dashed p-6 text-center text-sm text-slate-400">
+          No job spec text added yet — click "Add notes" to paste or type it in.
+        </p>
+      )}
+    </section>
   );
 }
