@@ -51,7 +51,7 @@ export const DOCUMENT_TYPES = [
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export type PersonType = "CANDIDATE" | "CLIENT_CONTACT";
-export type CompanyType = "PARTNER" | "ISV" | "CONSULTANCY" | "END_USER";
+export type CompanyType = "PARTNER" | "ISV" | "END_USER";
 export type RelationshipStatus = "PROSPECT" | "ACTIVE_CLIENT" | "DORMANT" | "DO_NOT_CONTACT";
 export type WorkPreference = "REMOTE" | "HYBRID" | "ONSITE";
 export type TaggableType = "PERSON" | "COMPANY" | "JOB" | "DOCUMENT";

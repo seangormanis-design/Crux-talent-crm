@@ -48,7 +48,6 @@ interface Company {
 const COMPANY_TYPE_OPTIONS = [
   { value: "PARTNER", label: "Partner" },
   { value: "ISV", label: "ISV" },
-  { value: "CONSULTANCY", label: "Consultancy" },
   { value: "END_USER", label: "End User" },
 ];
 

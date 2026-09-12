@@ -33,7 +33,6 @@ model User {
 enum CompanyType {
   PARTNER
   ISV
-  CONSULTANCY
   END_USER
 }
 

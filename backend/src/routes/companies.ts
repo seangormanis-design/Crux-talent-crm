@@ -10,7 +10,7 @@ const companySchema = z.object({
   website: optionalUrl,
   linkedinUrl: optionalUrl,
   industry: z.string().optional(),
-  companyType: z.enum(["PARTNER", "ISV", "CONSULTANCY", "END_USER"]).optional(),
+  companyType: z.enum(["PARTNER", "ISV", "END_USER"]).optional(),
   size: z.string().optional(),
   hqLocation: z.string().optional(),
   addressStreet: optionalString,
