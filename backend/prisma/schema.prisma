@@ -260,6 +260,15 @@ enum JobStage {
   REJECTED
 }
 
+// The recruiter's own judgement of how likely this job is to close and how
+// good the information on it is — never calculated, always manually set.
+// Required at creation so nothing ends up unrated by accident.
+enum JobQualityRating {
+  A
+  B
+  C
+}
+
 model Job {
   id       String @id @default(uuid())
   title    String
@@ -276,6 +285,8 @@ model Job {
   rateMax   Decimal? @db.Decimal(10, 2)
 
   stage JobStage @default(POTENTIAL_LEAD)
+
+  qualityRating JobQualityRating
 
   // Free-text alternative/complement to an uploaded Job Spec document — some
   // clients just email the details rather than sending a formal doc. No
@@ -307,6 +318,7 @@ model Job {
   @@map("jobs")
   @@index([companyId])
   @@index([stage])
+  @@index([qualityRating])
 }
 
 enum CandidateStage {

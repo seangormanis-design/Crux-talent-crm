@@ -11,8 +11,14 @@ interface StageCount {
   _count: { _all: number };
 }
 
+interface RatingCount {
+  qualityRating: string;
+  _count: { _all: number };
+}
+
 interface DashboardData {
   pipeline: StageCount[];
+  pipelineByQualityRating: RatingCount[];
   activityFeed: {
     staleJobs: any[];
     expiringDocuments: any[];
@@ -63,6 +69,16 @@ export default function Dashboard() {
         <Link to="/pipeline" className="mt-3 inline-block text-sm text-blue-600">
           View full kanban board →
         </Link>
+
+        <h2 className="mb-3 mt-6 text-lg font-semibold">Pipeline by quality rating</h2>
+        <div className="grid grid-cols-3 gap-3">
+          {data.pipelineByQualityRating.map((row) => (
+            <div key={row.qualityRating} className="rounded border bg-white p-3">
+              <p className="text-xs uppercase text-slate-500">Rating {row.qualityRating}</p>
+              <p className="text-2xl font-semibold">{row._count._all}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="space-y-4">

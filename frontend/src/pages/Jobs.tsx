@@ -15,9 +15,14 @@ interface Job {
   id: string;
   title: string;
   stage: string;
+  qualityRating: string;
   company: { name: string };
   archivedAt?: string | null;
 }
+
+// A/B/C only — the recruiter's own judgement of how likely this job is to
+// close, never calculated. Required at creation so nothing goes unrated.
+const QUALITY_RATINGS = ["A", "B", "C"];
 
 const STAGES = [
   "POTENTIAL_LEAD",
@@ -87,12 +92,27 @@ export function JobsList() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [ratingFilter, setRatingFilter] = useState<Set<string>>(new Set());
 
-  function load(archived = showArchived) {
-    api.get<Job[]>(`/api/jobs${archived ? "?includeArchived=true" : ""}`).then(setJobs);
+  function load(archived = showArchived, ratings = ratingFilter) {
+    const params = new URLSearchParams();
+    if (archived) params.set("includeArchived", "true");
+    for (const r of ratings) params.append("qualityRating", r);
+    const qs = params.toString();
+    api.get<Job[]>(`/api/jobs${qs ? `?${qs}` : ""}`).then(setJobs);
   }
 
   useEffect(() => load(), []);
+
+  function toggleRating(rating: string) {
+    setRatingFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(rating)) next.delete(rating);
+      else next.add(rating);
+      load(showArchived, next);
+      return next;
+    });
+  }
 
   return (
     <div>
@@ -112,17 +132,49 @@ export function JobsList() {
         />
       )}
 
-      <label className="mb-4 flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">
-        <input
-          type="checkbox"
-          checked={showArchived}
-          onChange={(e) => {
-            setShowArchived(e.target.checked);
-            load(e.target.checked);
-          }}
-        />
-        Show archived
-      </label>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(e) => {
+              setShowArchived(e.target.checked);
+              load(e.target.checked);
+            }}
+          />
+          Show archived
+        </label>
+
+        <div className="flex items-center gap-1.5 text-xs">
+          <span className="text-slate-500">Quality rating:</span>
+          {QUALITY_RATINGS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => toggleRating(r)}
+              className={`rounded-full border px-2.5 py-1 font-medium ${
+                ratingFilter.has(r)
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 hover:bg-slate-100"
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+          {ratingFilter.size > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setRatingFilter(new Set());
+                load(showArchived, new Set());
+              }}
+              className="text-blue-600 hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="overflow-hidden rounded border bg-white">
         <table className="w-full text-sm">
@@ -131,6 +183,7 @@ export function JobsList() {
               <th className="px-3 py-2">Title</th>
               <th className="px-3 py-2">Company</th>
               <th className="px-3 py-2">Stage</th>
+              <th className="px-3 py-2">Rating</th>
             </tr>
           </thead>
           <tbody>
@@ -146,6 +199,9 @@ export function JobsList() {
                 </td>
                 <td className="px-3 py-2">{j.company?.name}</td>
                 <td className="px-3 py-2">{j.stage.replaceAll("_", " ")}</td>
+                <td className="px-3 py-2">
+                  <span className="rounded-full border px-2 py-0.5 text-xs font-medium">{j.qualityRating}</span>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -183,6 +239,11 @@ export function JobDetail() {
 
   async function changeStage(stage: string) {
     await api.post(`/api/jobs/${id}/stage`, { stage });
+    load();
+  }
+
+  async function changeQualityRating(qualityRating: string) {
+    await api.patch(`/api/jobs/${id}`, { qualityRating });
     load();
   }
 
@@ -585,6 +646,25 @@ export function JobDetail() {
           {STAGES.map((s) => (
             <option key={s} value={s}>
               {s.replaceAll("_", " ")}
+            </option>
+          ))}
+        </select>
+      </section>
+
+      <section>
+        <h2 className="mb-2 font-medium">Quality Rating</h2>
+        <p className="mb-2 text-xs text-slate-500">
+          Your own judgement of how likely this job is to close, and the quality of information you have on it —
+          never calculated automatically.
+        </p>
+        <select
+          className="rounded border px-2 py-2 text-sm"
+          value={job.qualityRating}
+          onChange={(e) => changeQualityRating(e.target.value)}
+        >
+          {QUALITY_RATINGS.map((r) => (
+            <option key={r} value={r}>
+              {r}
             </option>
           ))}
         </select>

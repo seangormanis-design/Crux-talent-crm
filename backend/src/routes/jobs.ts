@@ -11,6 +11,9 @@ export const jobsRouter = Router();
 const jobSchema = z.object({
   title: z.string().min(1),
   companyId: z.string().uuid(),
+  // The recruiter's own judgement of close-likelihood/data quality — never
+  // calculated, and required so nothing ends up unrated by accident.
+  qualityRating: z.enum(["A", "B", "C"]),
   level: z.string().optional(),
   location: z.string().optional(),
   workPreference: z.enum(["REMOTE", "HYBRID", "ONSITE"]).optional(),
@@ -48,7 +51,12 @@ function toPrismaData(input: z.infer<typeof jobSchema>) {
 }
 
 jobsRouter.get("/", async (req, res) => {
-  const { q, stage, companyId, includeArchived } = req.query;
+  const { q, stage, companyId, includeArchived, qualityRating } = req.query;
+
+  // Combinable multi-select: ?qualityRating=A&qualityRating=B, or a single value.
+  const ratings = qualityRating
+    ? (Array.isArray(qualityRating) ? qualityRating : [qualityRating]).map(String)
+    : [];
 
   const jobs = await prisma.job.findMany({
     where: {
@@ -57,6 +65,7 @@ jobsRouter.get("/", async (req, res) => {
         q ? { title: { contains: String(q), mode: "insensitive" } } : {},
         stage ? { stage: stage as any } : {},
         companyId ? { companyId: String(companyId) } : {},
+        ratings.length ? { qualityRating: { in: ratings as any } } : {},
       ],
     },
     include: { company: true, essentialSkills: true, idealSkills: true, roleTypes: true, candidates: true },

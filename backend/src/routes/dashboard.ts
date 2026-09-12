@@ -16,6 +16,7 @@ dashboardRouter.get("/", async (_req, res) => {
 
   const [
     jobsByStage,
+    jobsByQualityRating,
     staleJobs,
     expiringDocuments,
     recentInteractions,
@@ -25,6 +26,10 @@ dashboardRouter.get("/", async (_req, res) => {
     upcomingInterviews,
   ] = await Promise.all([
       prisma.job.groupBy({ by: ["stage"], where: { archivedAt: null }, _count: { _all: true } }),
+      // Same population as the by-stage breakdown, cut by the recruiter's own
+      // quality rating instead — lets pipeline reporting show e.g. how much
+      // of the open pipeline is A-rated vs B/C.
+      prisma.job.groupBy({ by: ["qualityRating"], where: { archivedAt: null }, _count: { _all: true } }),
       prisma.job.findMany({
         where: { updatedAt: { lt: staleThreshold }, stage: { notIn: ["PLACED", "REJECTED"] }, archivedAt: null },
         include: { company: true },
@@ -76,6 +81,7 @@ dashboardRouter.get("/", async (_req, res) => {
 
   res.json({
     pipeline: jobsByStage,
+    pipelineByQualityRating: jobsByQualityRating,
     activityFeed: {
       staleJobs,
       expiringDocuments,

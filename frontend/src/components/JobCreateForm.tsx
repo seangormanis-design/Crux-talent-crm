@@ -23,6 +23,9 @@ export default function JobCreateForm({
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [companyId, setCompanyId] = useState(initialCompanyId ?? "");
   const [title, setTitle] = useState("");
+  // No default — the recruiter must actively pick A/B/C, never inherit one
+  // silently, so nothing ends up unrated by accident.
+  const [qualityRating, setQualityRating] = useState("");
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -33,7 +36,7 @@ export default function JobCreateForm({
     e.preventDefault();
     setCreating(true);
     try {
-      const job = await api.post<CreatedJob>("/api/jobs", { title, companyId });
+      const job = await api.post<CreatedJob>("/api/jobs", { title, companyId, qualityRating });
       onCreated(job);
     } finally {
       setCreating(false);
@@ -63,6 +66,18 @@ export default function JobCreateForm({
         required
         autoFocus
       />
+      <select
+        className="rounded border px-2 py-2 text-sm"
+        value={qualityRating}
+        onChange={(e) => setQualityRating(e.target.value)}
+        required
+        title="Your own judgement of how likely this job is to close, and the quality of information you have on it — never calculated"
+      >
+        <option value="">Quality rating...</option>
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+      </select>
       <button disabled={creating} className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50">
         {creating ? "Creating..." : "Create"}
       </button>
