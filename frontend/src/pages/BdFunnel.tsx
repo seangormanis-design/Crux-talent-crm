@@ -98,7 +98,9 @@ export default function BdFunnel() {
               {board[stage]?.map((opp) => (
                 <div
                   key={opp.id}
-                  className={`rounded border border-l-4 p-2 text-xs ${RECORD_KIND_BORDER_CLASS.COMPANY}`}
+                  className={`rounded border p-2 text-xs ${
+                    opp.company ? `border-l-4 ${RECORD_KIND_BORDER_CLASS.COMPANY}` : "border-dashed border-slate-300"
+                  }`}
                 >
                   <OpportunityCompanyLabel opportunity={opp} />
                   <p className="text-slate-700">

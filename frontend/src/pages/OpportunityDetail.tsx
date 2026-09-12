@@ -257,12 +257,17 @@ function TargetContactRow({
   }
 
   return (
-    <div className="rounded border p-2">
+    <div className={`rounded border p-2 ${!contact.convertedPersonId ? "border-dashed border-slate-300" : ""}`}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-medium">
             {contact.name}
             {contact.jobTitle && <span className="font-normal text-slate-500"> — {contact.jobTitle}</span>}
+            {!contact.convertedPersonId && (
+              <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[10px] font-normal uppercase text-slate-500">
+                Prospect
+              </span>
+            )}
           </p>
           <div className="flex flex-wrap gap-2 text-xs">
             {contact.linkedinUrl && (
