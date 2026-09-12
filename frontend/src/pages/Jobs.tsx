@@ -50,6 +50,14 @@ const PIPELINE_STAGE_LABELS: Record<string, string> = {
 };
 const PIPELINE_STAGES = Object.keys(PIPELINE_STAGE_LABELS);
 
+// Action types for the Pipeline Activity filter — every stage a candidate
+// can reach, plus a synthetic type for interview-scheduled entries (which
+// aren't a stage change at all).
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  ...PIPELINE_STAGE_LABELS,
+  INTERVIEW_SCHEDULED: "Interview Scheduled",
+};
+
 const INTERVIEW_STAGES = new Set(["FIRST_INTERVIEW", "FURTHER_INTERVIEWS"]);
 
 const INTERVIEW_FORMAT_LABELS: Record<string, string> = {
@@ -255,13 +263,14 @@ export function JobDetail() {
   // (createdAt), not — for interviews — the future date they're scheduled
   // for (that's what the dashboard's "Upcoming interviews" feed is for).
   const pipelineActivity = useMemo(() => {
-    const entries: { id: string; at: string; candidate: any; description: string }[] = [];
+    const entries: { id: string; at: string; candidate: any; actionType: string; description: string }[] = [];
     for (const jc of job?.candidates ?? []) {
       for (const sc of jc.stageChanges ?? []) {
         entries.push({
           id: `sc-${sc.id}`,
           at: sc.createdAt,
           candidate: jc.candidate,
+          actionType: sc.toStage,
           description: sc.fromStage
             ? `Moved to ${PIPELINE_STAGE_LABELS[sc.toStage] ?? sc.toStage}`
             : `Added to pipeline — ${PIPELINE_STAGE_LABELS[sc.toStage] ?? sc.toStage}`,
@@ -275,12 +284,49 @@ export function JobDetail() {
           id: `iv-${iv.id}`,
           at: iv.createdAt,
           candidate: jc.candidate,
+          actionType: "INTERVIEW_SCHEDULED",
           description: `Interview scheduled — ${ordinal(idx + 1)} Interview, ${formatShortDateTime(iv.scheduledAt)}`,
         });
       });
     }
     return entries.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [job]);
+
+  // Distinct candidates with any activity, for the Candidate filter dropdown.
+  const activityCandidates = useMemo(() => {
+    const byId = new Map<string, any>();
+    for (const entry of pipelineActivity) byId.set(entry.candidate.id, entry.candidate);
+    return [...byId.values()].sort((a, b) => fullName(a).localeCompare(fullName(b)));
+  }, [pipelineActivity]);
+
+  // Empty selection = no filter applied (show everything) for both — easy
+  // to combine, and clearing just means resetting these two back to empty.
+  const [activityCandidateFilter, setActivityCandidateFilter] = useState("");
+  const [activityTypeFilter, setActivityTypeFilter] = useState<Set<string>>(new Set());
+
+  const filteredActivity = useMemo(() => {
+    return pipelineActivity.filter((entry) => {
+      if (activityCandidateFilter && entry.candidate.id !== activityCandidateFilter) return false;
+      if (activityTypeFilter.size > 0 && !activityTypeFilter.has(entry.actionType)) return false;
+      return true;
+    });
+  }, [pipelineActivity, activityCandidateFilter, activityTypeFilter]);
+
+  function toggleActivityType(type: string) {
+    setActivityTypeFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  }
+
+  const activityFiltersActive = activityCandidateFilter !== "" || activityTypeFilter.size > 0;
+
+  function clearActivityFilters() {
+    setActivityCandidateFilter("");
+    setActivityTypeFilter(new Set());
+  }
 
   if (!job) return <p>Loading...</p>;
 
@@ -472,39 +518,74 @@ export function JobDetail() {
         )}
 
         {pipelineView === "activity" && (
-          <div className="overflow-hidden rounded border bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-100 text-left">
-                <tr>
-                  <th className="px-3 py-2">Date/time</th>
-                  <th className="px-3 py-2">Candidate</th>
-                  <th className="px-3 py-2">What happened</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pipelineActivity.map((entry) => (
-                  <tr key={entry.id} className="border-t">
-                    <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">
-                      {new Date(entry.at).toLocaleString()}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      <Link to={`/people/${entry.candidate.id}`} className={personLinkClass(entry.candidate)}>
-                        {fullName(entry.candidate)}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2">{entry.description}</td>
-                  </tr>
+          <>
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+              <select
+                className="rounded border px-2 py-1.5"
+                value={activityCandidateFilter}
+                onChange={(e) => setActivityCandidateFilter(e.target.value)}
+              >
+                <option value="">All candidates</option>
+                {activityCandidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {fullName(c)}
+                  </option>
                 ))}
-                {!pipelineActivity.length && (
+              </select>
+              {Object.entries(ACTION_TYPE_LABELS).map(([type, label]) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => toggleActivityType(type)}
+                  className={`rounded-full border px-2 py-1 ${
+                    activityTypeFilter.has(type)
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-300 hover:bg-slate-100"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+              {activityFiltersActive && (
+                <button type="button" onClick={clearActivityFilters} className="text-blue-600 hover:underline">
+                  Clear filters
+                </button>
+              )}
+            </div>
+            <div className="overflow-hidden rounded border bg-white">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-100 text-left">
                   <tr>
-                    <td colSpan={3} className="px-3 py-6 text-center text-slate-400">
-                      No pipeline activity yet
-                    </td>
+                    <th className="px-3 py-2">Date/time</th>
+                    <th className="px-3 py-2">Candidate</th>
+                    <th className="px-3 py-2">What happened</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredActivity.map((entry) => (
+                    <tr key={entry.id} className="border-t">
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">
+                        {new Date(entry.at).toLocaleString()}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2">
+                        <Link to={`/people/${entry.candidate.id}`} className={personLinkClass(entry.candidate)}>
+                          {fullName(entry.candidate)}
+                        </Link>
+                      </td>
+                      <td className="px-3 py-2">{entry.description}</td>
+                    </tr>
+                  ))}
+                  {!filteredActivity.length && (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-6 text-center text-slate-400">
+                        {pipelineActivity.length ? "No activity matches these filters" : "No pipeline activity yet"}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
 
