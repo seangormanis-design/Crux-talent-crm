@@ -102,11 +102,19 @@ export default function BdFunnel() {
                     opp.company ? `border-l-4 ${RECORD_KIND_BORDER_CLASS.COMPANY}` : "border-dashed border-slate-300"
                   }`}
                 >
-                  <OpportunityCompanyLabel opportunity={opp} />
-                  <p className="text-slate-700">
-                    <Link to={`/opportunities/${opp.id}`} className="hover:underline">
-                      {opp.title}
-                    </Link>
+                  {/* Title is the primary, always-clickable link into this
+                      Opportunity's own detail view — where Target Contacts and
+                      activity live. It leads visually in both states so there's
+                      one consistent, obvious way in, rather than relying on the
+                      company name above (which isn't a link at all pre-conversion). */}
+                  <Link
+                    to={`/opportunities/${opp.id}`}
+                    className="block font-medium text-slate-900 underline decoration-slate-300 underline-offset-2 hover:text-slate-600 hover:decoration-slate-400"
+                  >
+                    {opp.title}
+                  </Link>
+                  <p>
+                    <OpportunityCompanyLabel opportunity={opp} />
                   </p>
                   {opp.notes && <p className="mt-0.5 text-slate-500">{opp.notes}</p>}
                   {!!opp.targetContacts?.length && (
