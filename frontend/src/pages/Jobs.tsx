@@ -21,6 +21,23 @@ interface Job {
   qualityRating: string;
   company: { name: string };
   archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  candidates: { stage: string }[];
+}
+
+// Candidate pipeline stages summarized directly on the Jobs list row, so
+// sourcing progress is visible without opening the job — the specific
+// subset the recruiter scans for at a glance, not every possible stage.
+const JOBS_LIST_PIPELINE_STAGES = ["CV_SENT", "FIRST_INTERVIEW", "FURTHER_INTERVIEWS"];
+
+// Same "no movement in 14+ days" threshold the Dashboard's stale-jobs feed
+// already uses — one definition of "stale" for the whole app.
+const STALE_JOB_DAYS = 14;
+
+function daysSince(iso: string): number {
+  const ms = Date.now() - new Date(iso).getTime();
+  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
 }
 
 // A/B/C only — the recruiter's own judgement of how likely this job is to
@@ -84,6 +101,10 @@ export function JobsList() {
   const [showForm, setShowForm] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [ratingFilter, setRatingFilter] = useState<Set<string>>(new Set());
+  // Off by default (server order = most recently touched first); toggling
+  // this re-sorts client-side to surface the most neglected jobs instead —
+  // the "days since last update" column is the whole point of that view.
+  const [staleFirst, setStaleFirst] = useState(false);
 
   function load(archived = showArchived, ratings = ratingFilter) {
     const params = new URLSearchParams();
@@ -94,6 +115,11 @@ export function JobsList() {
   }
 
   useEffect(() => load(), []);
+
+  const displayedJobs = useMemo(() => {
+    if (!staleFirst) return jobs;
+    return [...jobs].sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
+  }, [jobs, staleFirst]);
 
   function toggleRating(rating: string) {
     setRatingFilter((prev) => {
@@ -175,29 +201,64 @@ export function JobsList() {
               <th className="px-3 py-2">Company</th>
               <th className="px-3 py-2">Stage</th>
               <th className="px-3 py-2">Rating</th>
+              <th className="px-3 py-2">Pipeline</th>
+              <th className="px-3 py-2">Created</th>
+              <th className="px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setStaleFirst((s) => !s)}
+                  className="flex items-center gap-1 font-medium hover:underline"
+                  title="Sort by most neglected first"
+                >
+                  Last updated {staleFirst ? "▲" : "▼"}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {jobs.map((j) => (
-              <tr
-                key={j.id}
-                className={`border-t border-l-4 ${RECORD_KIND_BORDER_CLASS.JOB} ${j.archivedAt ? "opacity-50" : ""}`}
-              >
-                <td className="px-3 py-2">
-                  <Link to={`/jobs/${j.id}`} className={JOB_LINK_CLASS}>
-                    {j.title}
-                  </Link>
-                  {j.archivedAt && (
-                    <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Archived</span>
-                  )}
-                </td>
-                <td className="px-3 py-2">{j.company?.name}</td>
-                <td className="px-3 py-2">{j.stage.replaceAll("_", " ")}</td>
-                <td className="px-3 py-2">
-                  <span className="rounded-full border px-2 py-0.5 text-xs font-medium">{j.qualityRating}</span>
-                </td>
-              </tr>
-            ))}
+            {displayedJobs.map((j) => {
+              const daysSinceUpdate = daysSince(j.updatedAt);
+              const isStale = daysSinceUpdate >= STALE_JOB_DAYS;
+              return (
+                <tr
+                  key={j.id}
+                  className={`border-t border-l-4 ${RECORD_KIND_BORDER_CLASS.JOB} ${j.archivedAt ? "opacity-50" : ""}`}
+                >
+                  <td className="px-3 py-2">
+                    <Link to={`/jobs/${j.id}`} className={JOB_LINK_CLASS}>
+                      {j.title}
+                    </Link>
+                    {j.archivedAt && (
+                      <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Archived</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">{j.company?.name}</td>
+                  <td className="px-3 py-2">{j.stage.replaceAll("_", " ")}</td>
+                  <td className="px-3 py-2">
+                    <span className="rounded-full border px-2 py-0.5 text-xs font-medium">{j.qualityRating}</span>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      {JOBS_LIST_PIPELINE_STAGES.map((stage) => {
+                        const count = j.candidates.filter((c) => c.stage === stage).length;
+                        return (
+                          <span key={stage} title={PIPELINE_STAGE_LABELS[stage]} className="whitespace-nowrap">
+                            {PIPELINE_STAGE_LABELS[stage]}{" "}
+                            <span className={`font-semibold ${count > 0 ? "text-slate-900" : "text-slate-400"}`}>
+                              {count}
+                            </span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-600">{daysSince(j.createdAt)} days</td>
+                  <td className={`px-3 py-2 whitespace-nowrap ${isStale ? "font-semibold text-red-600" : "text-slate-600"}`}>
+                    {daysSinceUpdate} days
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
