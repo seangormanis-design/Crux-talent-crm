@@ -28,7 +28,10 @@ opportunitiesRouter.get("/", async (req, res) => {
 
   const opportunities = await prisma.opportunity.findMany({
     where: companyId ? { companyId: String(companyId) } : {},
-    include: { company: true },
+    include: {
+      company: { include: { contacts: { where: { deletedAt: null } } } },
+      scheduledEvents: { include: { contact: true }, orderBy: { scheduledAt: "asc" } },
+    },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -39,7 +42,10 @@ opportunitiesRouter.get("/", async (req, res) => {
 // company, grouped by stage — same shape as GET /api/pipeline/board.
 opportunitiesRouter.get("/board", async (_req, res) => {
   const opportunities = await prisma.opportunity.findMany({
-    include: { company: true },
+    include: {
+      company: { include: { contacts: { where: { deletedAt: null } } } },
+      scheduledEvents: { include: { contact: true }, orderBy: { scheduledAt: "asc" } },
+    },
     orderBy: { updatedAt: "desc" },
   });
 

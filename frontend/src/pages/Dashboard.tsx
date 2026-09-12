@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import { fullName } from "../lib/personName";
 import CvDropCreatePanel from "../components/CvDropCreatePanel";
 import RecordTypeDot from "../components/RecordTypeDot";
+import { SCHEDULED_EVENT_FORMAT_LABELS } from "../components/ScheduledEventsPanel";
 import { COMPANY_LINK_CLASS, personLinkClass, personRecordKind } from "../lib/recordColors";
 
 interface StageCount {
@@ -26,15 +27,9 @@ interface DashboardData {
     candidatesAwaitingResponse: any[];
     followUps: any[];
     invoicesDue: any[];
-    upcomingInterviews: any[];
+    upcomingScheduledEvents: any[];
   };
 }
-
-const INTERVIEW_FORMAT_LABELS: Record<string, string> = {
-  PHONE: "Phone",
-  VIDEO: "Video/Teams",
-  FACE_TO_FACE: "Face to Face",
-};
 
 function isOverdue(iso: string): boolean {
   const today = new Date();
@@ -103,22 +98,48 @@ export default function Dashboard() {
           ))}
         </FeedBlock>
 
-        <FeedBlock title="Upcoming interviews">
-          {data.activityFeed.upcomingInterviews.map((interview) => (
-            <li key={interview.id} className="flex items-start gap-1.5">
-              <RecordTypeDot kind="CANDIDATE" className="mt-1" />
-              <span>
-                <Link to={`/people/${interview.jobCandidate.candidate.id}`} className={personLinkClass({ personType: "CANDIDATE" })}>
-                  {fullName(interview.jobCandidate.candidate)}
-                </Link>{" "}
-                — {interview.jobCandidate.job.title} ({interview.jobCandidate.job.company?.name}) —{" "}
-                {new Date(interview.scheduledAt).toLocaleDateString()}{" "}
-                {new Date(interview.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} —{" "}
-                {INTERVIEW_FORMAT_LABELS[interview.format]}
-                {interview.notes ? ` — ${interview.notes}` : ""}
-              </span>
-            </li>
-          ))}
+        <FeedBlock title="Upcoming interviews & meetings">
+          {data.activityFeed.upcomingScheduledEvents.map((event) => {
+            const when = (
+              <>
+                {new Date(event.scheduledAt).toLocaleDateString()}{" "}
+                {new Date(event.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} —{" "}
+                {SCHEDULED_EVENT_FORMAT_LABELS[event.format]}
+                {event.notes ? ` — ${event.notes}` : ""}
+              </>
+            );
+            // Same underlying ScheduledEvent — jobCandidate set means a
+            // candidate interview, opportunity set means a BD meeting.
+            if (event.jobCandidate) {
+              return (
+                <li key={event.id} className="flex items-start gap-1.5">
+                  <RecordTypeDot kind="CANDIDATE" className="mt-1" />
+                  <span>
+                    <Link
+                      to={`/people/${event.jobCandidate.candidate.id}`}
+                      className={personLinkClass({ personType: "CANDIDATE" })}
+                    >
+                      {fullName(event.jobCandidate.candidate)}
+                    </Link>{" "}
+                    — {event.jobCandidate.job.title} ({event.jobCandidate.job.company?.name}) — {when}
+                  </span>
+                </li>
+              );
+            }
+            return (
+              <li key={event.id} className="flex items-start gap-1.5">
+                <RecordTypeDot kind="COMPANY" className="mt-1" />
+                <span>
+                  <Link to={`/companies/${event.opportunity.company.id}`} className={COMPANY_LINK_CLASS}>
+                    {event.opportunity.company.name}
+                  </Link>{" "}
+                  — {event.opportunity.title}
+                  {event.contact ? ` — with ${fullName(event.contact)}` : ""} — {when}
+                </span>
+              </li>
+            );
+          })}
+          {!data.activityFeed.upcomingScheduledEvents.length && <li className="text-slate-400">Nothing scheduled</li>}
         </FeedBlock>
 
         <FeedBlock title="Invoices due/overdue">

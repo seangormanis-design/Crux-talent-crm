@@ -43,7 +43,7 @@ Keep it subtle — a coloured left-border, small dot, or tinted badge, not solid
 
 Core business records — Company, Person (Candidate/Client Contact), Job — are never permanently deleted. A "delete" action archives instead (`archivedAt`, hidden from default views but fully reversible); GDPR erasure requests go through the separate anonymize flow (`deletedAt` plus scrubbed personal fields), which still preserves interaction/pipeline history so it stays queryable.
 
-Hard `DELETE` calls are reserved for genuinely disposable rows with no standalone history of their own — tag links, skill assignments, a single interview record. Any new entity that represents a first-class business record should follow the archive convention rather than introducing a new hard-delete path.
+Hard `DELETE` calls are reserved for genuinely disposable rows with no standalone history of their own — tag links, skill assignments, a single scheduled event (interview/meeting). Any new entity that represents a first-class business record should follow the archive convention rather than introducing a new hard-delete path.
 
 ### Large record-set pickers search server-side
 
@@ -60,3 +60,9 @@ Follow the established debounced-search-dropdown pattern (`CompanyPicker.tsx`, `
 A BD Opportunity (`Opportunity` model, stages Identified → Researched → Contacted → Meeting Booked → Proposal Sent → Won/Lost) tracks one active new-business pursuit against a Company. It is distinct from that Company's Account Status (`Company.relationshipStatus`: Prospect / Active Client / Dormant / Do Not Contact), which is a passive flag, not a pipeline — a company can hold an open Opportunity while already an Active Client elsewhere, and can have several Opportunities over time.
 
 Marking a BD Opportunity as Won automatically updates the linked Company's Account Status to Active Client. This is the only automatic status change tied to Opportunities — no other automatic actions occur on Won or Lost (no auto-created Job, no other field changes). Marking one Lost only requires a reason (free text or a short tag); the company's Account Status is left untouched. A Lost Opportunity is never archived or hidden — it stays visible and searchable in case it's worth revisiting later.
+
+### Scheduled events: interviews and BD meetings share one structure
+
+Interview scheduling (Candidates) and Meeting scheduling (BD Opportunities) share the same underlying scheduling structure (`ScheduledEvent` model / `ScheduledEventsPanel.tsx` component / `/api/scheduled-events`) and both surface on the main dashboard activity feed alongside follow-up reminders. Any future scheduled-event type should follow this same pattern rather than introducing a new, separate one.
+
+Concretely: `ScheduledEvent` has exactly one of `jobCandidateId` (an interview) or `opportunityId` (a meeting) set, plus an optional `contactId` (the Client Contact a meeting is with — never set for an interview). Multiple rows per parent are expected and shown as a simple numbered list; nothing is stored to track a "round number" since they're numbered by `scheduledAt` order at display time. `scheduledAt` is a real `DateTime`, not free text, so this stays ready for an actual calendar sync later.

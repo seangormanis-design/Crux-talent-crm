@@ -8,7 +8,9 @@ import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import JobCreateForm from "../components/JobCreateForm";
 import CandidatePipelinePicker from "../components/CandidatePipelinePicker";
+import ScheduledEventsPanel from "../components/ScheduledEventsPanel";
 import { fullName } from "../lib/personName";
+import { ordinal } from "../lib/ordinal";
 import { RECORD_KIND_BORDER_CLASS, RECORD_KIND_TEXT_CLASS, personLinkClass } from "../lib/recordColors";
 
 interface Job {
@@ -65,18 +67,6 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 };
 
 const INTERVIEW_STAGES = new Set(["FIRST_INTERVIEW", "FURTHER_INTERVIEWS"]);
-
-const INTERVIEW_FORMAT_LABELS: Record<string, string> = {
-  PHONE: "Phone",
-  VIDEO: "Video/Teams",
-  FACE_TO_FACE: "Face to Face",
-};
-
-function ordinal(n: number): string {
-  const suffixes = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return `${n}${suffixes[(v - 20) % 10] ?? suffixes[v] ?? suffixes[0]}`;
-}
 
 // Compact "10 Sep, 11:00" style — distinct from the app's usual DD/MM/YYYY,
 // used specifically for describing an interview's own scheduled slot within
@@ -221,12 +211,7 @@ export function JobDetail() {
   const [placementStartDate, setPlacementStartDate] = useState("");
   const [placementError, setPlacementError] = useState<string | null>(null);
   const [suggestedCandidates, setSuggestedCandidates] = useState<any[]>([]);
-  const [schedulingFor, setSchedulingFor] = useState<string | null>(null);
   const [pipelineView, setPipelineView] = useState<"board" | "activity">("board");
-  const [interviewDate, setInterviewDate] = useState("");
-  const [interviewTime, setInterviewTime] = useState("");
-  const [interviewFormat, setInterviewFormat] = useState("VIDEO");
-  const [interviewNotes, setInterviewNotes] = useState("");
 
   function load() {
     api.get(`/api/jobs/${id}`).then(setJob);
@@ -259,31 +244,6 @@ export function JobDetail() {
 
   async function changeCandidateStage(jobCandidateId: string, stage: string) {
     await api.post(`/api/pipeline/${jobCandidateId}/stage`, { stage });
-    load();
-  }
-
-  function resetInterviewForm() {
-    setSchedulingFor(null);
-    setInterviewDate("");
-    setInterviewTime("");
-    setInterviewFormat("VIDEO");
-    setInterviewNotes("");
-  }
-
-  async function scheduleInterview(e: FormEvent, jobCandidateId: string) {
-    e.preventDefault();
-    await api.post("/api/interviews", {
-      jobCandidateId,
-      scheduledAt: new Date(`${interviewDate}T${interviewTime || "09:00"}`).toISOString(),
-      format: interviewFormat,
-      notes: interviewNotes || undefined,
-    });
-    resetInterviewForm();
-    load();
-  }
-
-  async function deleteInterview(interviewId: string) {
-    await api.delete(`/api/interviews/${interviewId}`);
     load();
   }
 
@@ -333,7 +293,7 @@ export function JobDetail() {
             : `Added to pipeline — ${PIPELINE_STAGE_LABELS[sc.toStage] ?? sc.toStage}`,
         });
       }
-      const sortedInterviews = [...(jc.interviews ?? [])].sort(
+      const sortedInterviews = [...(jc.scheduledEvents ?? [])].sort(
         (a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
       );
       sortedInterviews.forEach((iv: any, idx: number) => {
@@ -473,84 +433,13 @@ export function JobDetail() {
                       </select>
 
                       {INTERVIEW_STAGES.has(jc.stage) && (
-                        <div className="mt-2 border-t pt-2">
-                          {jc.interviews?.map((iv: any, idx: number) => (
-                            <div key={iv.id} className="mb-1 flex items-start justify-between gap-1">
-                              <p className="text-slate-600">
-                                Interview {idx + 1}: {new Date(iv.scheduledAt).toLocaleDateString()}{" "}
-                                {new Date(iv.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} —{" "}
-                                {INTERVIEW_FORMAT_LABELS[iv.format]}
-                                {iv.notes && <span className="block text-slate-400">{iv.notes}</span>}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => deleteInterview(iv.id)}
-                                className="shrink-0 text-slate-400 hover:text-red-600"
-                                title="Remove"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-
-                          {schedulingFor === jc.id ? (
-                            <form onSubmit={(e) => scheduleInterview(e, jc.id)} className="mt-1 space-y-1">
-                              <div className="flex gap-1">
-                                <input
-                                  type="date"
-                                  className="w-full rounded border px-1 py-1 text-xs"
-                                  value={interviewDate}
-                                  onChange={(e) => setInterviewDate(e.target.value)}
-                                  required
-                                />
-                                <input
-                                  type="time"
-                                  className="w-full rounded border px-1 py-1 text-xs"
-                                  value={interviewTime}
-                                  onChange={(e) => setInterviewTime(e.target.value)}
-                                  required
-                                />
-                              </div>
-                              <select
-                                className="w-full rounded border px-1 py-1 text-xs"
-                                value={interviewFormat}
-                                onChange={(e) => setInterviewFormat(e.target.value)}
-                              >
-                                {Object.entries(INTERVIEW_FORMAT_LABELS).map(([value, label]) => (
-                                  <option key={value} value={value}>
-                                    {label}
-                                  </option>
-                                ))}
-                              </select>
-                              <input
-                                className="w-full rounded border px-1 py-1 text-xs"
-                                placeholder="Notes (interviewer, location/link)"
-                                value={interviewNotes}
-                                onChange={(e) => setInterviewNotes(e.target.value)}
-                              />
-                              <div className="flex gap-1">
-                                <button type="submit" className="flex-1 rounded bg-slate-900 px-2 py-1 text-xs text-white">
-                                  Save
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={resetInterviewForm}
-                                  className="rounded border px-2 py-1 text-xs hover:bg-slate-100"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </form>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setSchedulingFor(jc.id)}
-                              className="text-blue-600 hover:underline"
-                            >
-                              + Schedule interview
-                            </button>
-                          )}
-                        </div>
+                        <ScheduledEventsPanel
+                          events={jc.scheduledEvents ?? []}
+                          parentField="jobCandidateId"
+                          parentId={jc.id}
+                          noun="interview"
+                          onChange={load}
+                        />
                       )}
                     </div>
                   ))}

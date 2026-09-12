@@ -7,7 +7,8 @@ import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import PersonCreateForm from "../components/PersonCreateForm";
 import JobCreateForm from "../components/JobCreateForm";
 import OpportunityCreateForm from "../components/OpportunityCreateForm";
-import { OPPORTUNITY_STAGE_LABELS, OPPORTUNITY_STAGES, LOST_REASON_TAGS } from "./BdFunnel";
+import ScheduledEventsPanel from "../components/ScheduledEventsPanel";
+import { OPPORTUNITY_STAGE_LABELS, OPPORTUNITY_STAGES, LOST_REASON_TAGS, MEETING_STAGE } from "./BdFunnel";
 import RecordTypeDot from "../components/RecordTypeDot";
 import RecordTypeBadge from "../components/RecordTypeBadge";
 import { fullName } from "../lib/personName";
@@ -590,6 +591,17 @@ export function CompanyDetail() {
                 </div>
                 {o.stage === "LOST" && o.lostReason && (
                   <p className="mt-1 rounded bg-slate-50 px-1.5 py-1 text-xs text-slate-500">Lost: {o.lostReason}</p>
+                )}
+
+                {o.stage === MEETING_STAGE && (
+                  <ScheduledEventsPanel
+                    events={o.scheduledEvents ?? []}
+                    parentField="opportunityId"
+                    parentId={o.id}
+                    contacts={sortedContacts}
+                    noun="meeting"
+                    onChange={load}
+                  />
                 )}
 
                 {lostPromptFor === o.id && (

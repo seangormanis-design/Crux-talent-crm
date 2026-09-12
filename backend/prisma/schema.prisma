@@ -116,6 +116,8 @@ model Opportunity {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  scheduledEvents ScheduledEvent[]
+
   @@map("opportunities")
   @@index([companyId])
   @@index([stage])
@@ -228,6 +230,9 @@ model Person {
   placements        Placement[]   @relation("PlacementCandidate")
   tags              TagLink[]
   prospectEntries   CandidateProspect[] @relation("ProspectCandidate")
+  // BD meetings this Client Contact is the meeting's contact for — distinct
+  // from jobApplications, which is the candidate-side pipeline relation.
+  meetingsAsContact ScheduledEvent[] @relation("ScheduledEventContact")
 
   @@map("people")
   @@index([personType])
@@ -385,39 +390,52 @@ model JobCandidate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  stageChanges StageChange[]
-  interviews   Interview[]
+  stageChanges    StageChange[]
+  scheduledEvents ScheduledEvent[]
 
   @@unique([jobId, candidateId])
   @@map("job_candidates")
   @@index([stage])
 }
 
-enum InterviewFormat {
+enum ScheduledEventFormat {
   PHONE
   VIDEO
   FACE_TO_FACE
 }
 
-// One scheduled interview round for a candidate-job pairing. Multiple rows
-// per pairing are expected once a candidate is in Further Interviews —
-// numbered by scheduledAt order at display time rather than stored, so
-// there's no "interview number" to keep in sync. scheduledAt is a real
-// DateTime (not free text) specifically so this is ready to sync outward to
-// an actual calendar (Outlook/Google) later without a data migration.
-model Interview {
-  id             String          @id @default(uuid())
-  jobCandidateId String
-  jobCandidate   JobCandidate    @relation(fields: [jobCandidateId], references: [id], onDelete: Cascade)
-  scheduledAt    DateTime
-  format         InterviewFormat
-  notes          String?
+// Shared scheduling structure for both candidate interviews and BD
+// Opportunity meetings — exactly one of jobCandidateId/opportunityId is set
+// per row, so both features are stored and displayed identically and share
+// one API/UI (see ScheduledEventsPanel.tsx). Any future scheduled-event type
+// should extend this model rather than introducing a separate one.
+// Multiple rows per parent are expected (further interview rounds, several
+// BD meetings) — numbered by scheduledAt order at display time rather than
+// stored, so there's no "round number" to keep in sync. scheduledAt is a
+// real DateTime (not free text) so this is ready to sync outward to an
+// actual calendar (Outlook/Google) later without a data migration.
+model ScheduledEvent {
+  id             String        @id @default(uuid())
+  jobCandidateId String?
+  jobCandidate   JobCandidate? @relation(fields: [jobCandidateId], references: [id], onDelete: Cascade)
+  opportunityId  String?
+  opportunity    Opportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  // Which Client Contact a BD meeting is with — required for an
+  // opportunity meeting, always null for a candidate interview.
+  contactId String?
+  contact   Person? @relation("ScheduledEventContact", fields: [contactId], references: [id], onDelete: Cascade)
+
+  scheduledAt DateTime
+  format      ScheduledEventFormat
+  notes       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("interviews")
+  @@map("scheduled_events")
   @@index([jobCandidateId])
+  @@index([opportunityId])
+  @@index([contactId])
   @@index([scheduledAt])
 }
 

@@ -23,7 +23,7 @@ dashboardRouter.get("/", async (_req, res) => {
     candidatesAwaitingResponse,
     followUps,
     invoicesDue,
-    upcomingInterviews,
+    upcomingScheduledEvents,
   ] = await Promise.all([
       prisma.job.groupBy({ by: ["stage"], where: { archivedAt: null }, _count: { _all: true } }),
       // Same population as the by-stage breakdown, cut by the recruiter's own
@@ -69,11 +69,17 @@ dashboardRouter.get("/", async (_req, res) => {
         orderBy: { invoiceDueDate: "asc" },
         take: 50,
       }),
-      // Every interview still in the future, soonest first — same
-      // no-time-window convention as the follow-up reminders feed.
-      prisma.interview.findMany({
+      // Every interview AND BD meeting still in the future, combined into one
+      // ascending list — same no-time-window convention as the follow-up
+      // reminders feed. Interviews and meetings share the same underlying
+      // ScheduledEvent structure, so one query covers both.
+      prisma.scheduledEvent.findMany({
         where: { scheduledAt: { gte: now } },
-        include: { jobCandidate: { include: { candidate: true, job: { include: { company: true } } } } },
+        include: {
+          jobCandidate: { include: { candidate: true, job: { include: { company: true } } } },
+          opportunity: { include: { company: true } },
+          contact: true,
+        },
         orderBy: { scheduledAt: "asc" },
         take: 50,
       }),
@@ -89,7 +95,7 @@ dashboardRouter.get("/", async (_req, res) => {
       candidatesAwaitingResponse,
       followUps,
       invoicesDue,
-      upcomingInterviews,
+      upcomingScheduledEvents,
     },
   });
 });

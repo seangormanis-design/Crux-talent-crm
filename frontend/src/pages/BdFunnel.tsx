@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import OpportunityCreateForm from "../components/OpportunityCreateForm";
+import ScheduledEventsPanel, { ScheduledEventRecord } from "../components/ScheduledEventsPanel";
 import { COMPANY_LINK_CLASS, RECORD_KIND_BORDER_CLASS } from "../lib/recordColors";
 
 export const OPPORTUNITY_STAGE_LABELS: Record<string, string> = {
@@ -17,13 +18,18 @@ export const OPPORTUNITY_STAGES = Object.keys(OPPORTUNITY_STAGE_LABELS);
 
 export const LOST_REASON_TAGS = ["Price", "Timing", "Chose competitor", "Other"];
 
+// A meeting can only be scheduled once an Opportunity has actually reached
+// the Meeting Booked stage.
+export const MEETING_STAGE = "MEETING_BOOKED";
+
 interface Opportunity {
   id: string;
   title: string;
   notes?: string | null;
   stage: string;
   lostReason?: string | null;
-  company: { id: string; name: string };
+  company: { id: string; name: string; contacts?: { id: string; firstName: string; surname?: string }[] };
+  scheduledEvents?: ScheduledEventRecord[];
 }
 
 export default function BdFunnel() {
@@ -104,6 +110,17 @@ export default function BdFunnel() {
                       </option>
                     ))}
                   </select>
+
+                  {opp.stage === MEETING_STAGE && (
+                    <ScheduledEventsPanel
+                      events={opp.scheduledEvents ?? []}
+                      parentField="opportunityId"
+                      parentId={opp.id}
+                      contacts={opp.company.contacts ?? []}
+                      noun="meeting"
+                      onChange={load}
+                    />
+                  )}
 
                   {lostPromptFor === opp.id && (
                     <div className="mt-2 space-y-1 rounded border bg-slate-50 p-2">
