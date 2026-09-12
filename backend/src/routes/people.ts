@@ -97,6 +97,10 @@ async function toPrismaData(input: z.infer<typeof personSchema>) {
 peopleRouter.get("/", async (req, res) => {
   const { q, personType, skillId, location, companyId, stage, includeArchived } = req.query;
 
+  // Combinable multi-select: ?skillId=a&skillId=b, or a single value — a
+  // person matching any one of the selected skills is included.
+  const skillIds = skillId ? (Array.isArray(skillId) ? skillId : [skillId]).map(String) : [];
+
   const people = await prisma.person.findMany({
     where: {
       deletedAt: null,
@@ -116,7 +120,7 @@ peopleRouter.get("/", async (req, res) => {
               ],
             }
           : {},
-        skillId ? { skills: { some: { skillId: String(skillId) } } } : {},
+        skillIds.length ? { skills: { some: { skillId: { in: skillIds } } } } : {},
         location ? { location: { contains: String(location), mode: "insensitive" } } : {},
         companyId ? { companyId: String(companyId) } : {},
         stage ? { jobApplications: { some: { stage: String(stage) as any } } } : {},

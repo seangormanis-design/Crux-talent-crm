@@ -145,7 +145,7 @@ function sortValue(p: Person, key: string): string {
 
 interface ListPrefs {
   personType: string;
-  skillId: string;
+  skillIds: string[];
   location: string;
   companyId: string;
   stage: string;
@@ -159,7 +159,7 @@ const PREFS_STORAGE_KEY = "crux.peopleList.prefs.v1";
 
 const DEFAULT_PREFS: ListPrefs = {
   personType: "",
-  skillId: "",
+  skillIds: [],
   location: "",
   companyId: "",
   stage: "",
@@ -183,9 +183,9 @@ export function PeopleList() {
   const [people, setPeople] = useState<Person[]>([]);
   const [q, setQ] = useState("");
   const [prefs, setPrefs] = useState<ListPrefs>(loadPrefs);
-  const [skillOptions, setSkillOptions] = useState<{ id: string; name: string }[]>([]);
   const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const [showSkillFilter, setShowSkillFilter] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [newType, setNewType] = useState<"CANDIDATE" | "CLIENT_CONTACT">("CANDIDATE");
   const navigate = useNavigate();
@@ -194,7 +194,7 @@ export function PeopleList() {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (filters.personType) params.set("personType", filters.personType);
-    if (filters.skillId) params.set("skillId", filters.skillId);
+    for (const id of filters.skillIds) params.append("skillId", id);
     if (filters.location) params.set("location", filters.location);
     if (filters.companyId) params.set("companyId", filters.companyId);
     if (filters.stage) params.set("stage", filters.stage);
@@ -218,7 +218,6 @@ export function PeopleList() {
 
   useEffect(() => load(), []);
   useEffect(() => {
-    api.get<{ id: string; name: string }[]>("/api/skills").then(setSkillOptions);
     api.get<{ id: string; name: string }[]>("/api/companies").then(setCompanyOptions);
   }, []);
   useEffect(() => {
@@ -235,6 +234,13 @@ export function PeopleList() {
     });
     return arr;
   }, [people, prefs.sortKey, prefs.sortDir]);
+
+  function toggleSkillFilter(skillId: string) {
+    const next = prefs.skillIds.includes(skillId)
+      ? prefs.skillIds.filter((id) => id !== skillId)
+      : [...prefs.skillIds, skillId];
+    updateFilters({ skillIds: next });
+  }
 
   function toggleSort(key: string) {
     updatePrefsOnly({
@@ -322,18 +328,40 @@ export function PeopleList() {
           <option value="CANDIDATE">Candidates only</option>
           <option value="CLIENT_CONTACT">Client contacts only</option>
         </select>
-        <select
-          className="rounded border px-2 py-2 text-sm"
-          value={prefs.skillId}
-          onChange={(e) => updateFilters({ skillId: e.target.value })}
-        >
-          <option value="">All skills</option>
-          {skillOptions.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowSkillFilter((s) => !s)}
+            className={`rounded border px-2 py-2 text-sm ${
+              prefs.skillIds.length ? "border-slate-900 bg-slate-900 text-white" : ""
+            }`}
+          >
+            Skills{prefs.skillIds.length > 0 && ` (${prefs.skillIds.length})`}
+          </button>
+          {showSkillFilter && (
+            <div className="absolute left-0 top-full z-10 mt-1 w-72 rounded border bg-white p-2 shadow-lg">
+              <SkillPicker mode="draft" selectedSkillIds={prefs.skillIds} onToggle={toggleSkillFilter} />
+              <div className="mt-2 flex items-center justify-between border-t pt-2">
+                {prefs.skillIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => updateFilters({ skillIds: [] })}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowSkillFilter(false)}
+                  className="ml-auto rounded bg-slate-900 px-2 py-1 text-xs text-white"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
         <input
           className="w-36 rounded border px-2 py-2 text-sm"
           placeholder="Location"
