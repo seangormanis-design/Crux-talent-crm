@@ -26,6 +26,7 @@ const INTERACTION_TYPES = [
   "LINKEDIN_MESSAGE",
   "EMAIL",
   "TEXT",
+  "VOICEMAIL",
 ] as const;
 
 // Exactly one of personId/targetContactId is required — a real Person or a

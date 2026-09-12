@@ -35,6 +35,7 @@ export const INTERACTION_TYPES = [
   "LINKEDIN_MESSAGE",
   "EMAIL",
   "TEXT",
+  "VOICEMAIL",
 ] as const;
 export type InteractionType = (typeof INTERACTION_TYPES)[number];
 

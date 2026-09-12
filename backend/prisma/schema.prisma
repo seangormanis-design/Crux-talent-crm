@@ -592,6 +592,7 @@ enum InteractionType {
   LINKEDIN_MESSAGE
   EMAIL
   TEXT
+  VOICEMAIL
 }
 
 model Interaction {
