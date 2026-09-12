@@ -60,7 +60,13 @@ searchRouter.get("/", async (req, res) => {
     }),
     prisma.opportunity.findMany({
       where: {
-        OR: [{ title: contains }, { notes: contains }, { lostReason: contains }, { company: { name: contains } }],
+        OR: [
+          { title: contains },
+          { notes: contains },
+          { lostReason: contains },
+          { company: { name: contains } },
+          { prospectCompanyName: contains },
+        ],
       },
       include: { company: true },
       take: limit,

@@ -10,6 +10,7 @@ import { skillsRouter } from "./routes/skills";
 import { roleTypesRouter } from "./routes/roleTypes";
 import { jobsRouter } from "./routes/jobs";
 import { opportunitiesRouter } from "./routes/opportunities";
+import { targetContactsRouter } from "./routes/targetContacts";
 import { pipelineRouter } from "./routes/pipeline";
 import { documentsRouter } from "./routes/documents";
 import { interactionsRouter } from "./routes/interactions";
@@ -41,6 +42,7 @@ export function buildApp() {
   app.use("/api/role-types", requireAuth, roleTypesRouter);
   app.use("/api/jobs", requireAuth, jobsRouter);
   app.use("/api/opportunities", requireAuth, opportunitiesRouter);
+  app.use("/api/target-contacts", requireAuth, targetContactsRouter);
   app.use("/api/pipeline", requireAuth, pipelineRouter);
   app.use("/api/documents", requireAuth, documentsRouter);
   app.use("/api/interactions", requireAuth, interactionsRouter);

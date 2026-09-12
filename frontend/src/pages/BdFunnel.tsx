@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import OpportunityCreateForm from "../components/OpportunityCreateForm";
+import OpportunityStageControl from "../components/OpportunityStageControl";
 import ScheduledEventsPanel, { ScheduledEventRecord } from "../components/ScheduledEventsPanel";
 import { COMPANY_LINK_CLASS, RECORD_KIND_BORDER_CLASS } from "../lib/recordColors";
 
@@ -22,43 +23,49 @@ export const LOST_REASON_TAGS = ["Price", "Timing", "Chose competitor", "Other"]
 // the Meeting Booked stage.
 export const MEETING_STAGE = "MEETING_BOOKED";
 
-interface Opportunity {
+export interface Opportunity {
   id: string;
   title: string;
   notes?: string | null;
   stage: string;
   lostReason?: string | null;
-  company: { id: string; name: string; contacts?: { id: string; firstName: string; surname?: string }[] };
+  // Lightweight prospecting: company is null until the Opportunity converts
+  // (at Meeting Booked) — until then, prospectCompanyName is all there is.
+  company?: { id: string; name: string; contacts?: { id: string; firstName: string; surname?: string }[] } | null;
+  prospectCompanyName?: string | null;
   scheduledEvents?: ScheduledEventRecord[];
+  targetContacts?: { id: string; convertedPersonId?: string | null }[];
+}
+
+// Company name for display — a real Link once converted, otherwise the
+// plain prospect text with a marker that no full record exists yet.
+export function OpportunityCompanyLabel({ opportunity }: { opportunity: Opportunity }) {
+  if (opportunity.company) {
+    return (
+      <Link to={`/companies/${opportunity.company.id}`} className={`font-medium ${COMPANY_LINK_CLASS}`}>
+        {opportunity.company.name}
+      </Link>
+    );
+  }
+  return (
+    <span className="font-medium text-slate-700">
+      {opportunity.prospectCompanyName || "Unnamed prospect"}
+      <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[10px] font-normal uppercase text-slate-500">
+        Prospect
+      </span>
+    </span>
+  );
 }
 
 export default function BdFunnel() {
   const [board, setBoard] = useState<Record<string, Opportunity[]>>({});
   const [showForm, setShowForm] = useState(false);
-  const [lostPromptFor, setLostPromptFor] = useState<string | null>(null);
-  const [lostReasonDraft, setLostReasonDraft] = useState("");
 
   function load() {
     api.get<Record<string, Opportunity[]>>("/api/opportunities/board").then(setBoard);
   }
 
   useEffect(load, []);
-
-  function moveStage(id: string, stage: string) {
-    if (stage === "LOST") {
-      setLostPromptFor(id);
-      setLostReasonDraft("");
-      return;
-    }
-    api.post(`/api/opportunities/${id}/stage`, { stage }).then(load);
-  }
-
-  async function confirmLost(id: string) {
-    if (!lostReasonDraft.trim()) return;
-    await api.post(`/api/opportunities/${id}/stage`, { stage: "LOST", lostReason: lostReasonDraft.trim() });
-    setLostPromptFor(null);
-    load();
-  }
 
   return (
     <div>
@@ -89,79 +96,42 @@ export default function BdFunnel() {
             </div>
             <div className="space-y-2 p-2">
               {board[stage]?.map((opp) => (
-                <div key={opp.id} className={`rounded border border-l-4 p-2 text-xs ${RECORD_KIND_BORDER_CLASS.COMPANY}`}>
-                  <Link to={`/companies/${opp.company.id}`} className={`font-medium ${COMPANY_LINK_CLASS}`}>
-                    {opp.company.name}
-                  </Link>
-                  <p className="text-slate-700">{opp.title}</p>
+                <div
+                  key={opp.id}
+                  className={`rounded border border-l-4 p-2 text-xs ${RECORD_KIND_BORDER_CLASS.COMPANY}`}
+                >
+                  <OpportunityCompanyLabel opportunity={opp} />
+                  <p className="text-slate-700">
+                    <Link to={`/opportunities/${opp.id}`} className="hover:underline">
+                      {opp.title}
+                    </Link>
+                  </p>
                   {opp.notes && <p className="mt-0.5 text-slate-500">{opp.notes}</p>}
+                  {!!opp.targetContacts?.length && (
+                    <p className="mt-0.5 text-slate-400">
+                      {opp.targetContacts.length} target contact{opp.targetContacts.length === 1 ? "" : "s"}
+                    </p>
+                  )}
                   {opp.stage === "LOST" && opp.lostReason && (
                     <p className="mt-1 rounded bg-slate-50 px-1.5 py-1 text-slate-500">Lost: {opp.lostReason}</p>
                   )}
 
-                  <select
-                    className="mt-1 w-full rounded border px-1 py-1 text-xs"
-                    value={opp.stage}
-                    onChange={(e) => moveStage(opp.id, e.target.value)}
-                  >
-                    {OPPORTUNITY_STAGES.map((s) => (
-                      <option key={s} value={s}>
-                        {OPPORTUNITY_STAGE_LABELS[s]}
-                      </option>
-                    ))}
-                  </select>
+                  <OpportunityStageControl
+                    opportunityId={opp.id}
+                    stage={opp.stage}
+                    onChanged={load}
+                    className="mt-1"
+                  />
 
                   {opp.stage === MEETING_STAGE && (
                     <ScheduledEventsPanel
                       events={opp.scheduledEvents ?? []}
                       parentField="opportunityId"
                       parentId={opp.id}
-                      contacts={opp.company.contacts ?? []}
+                      contacts={opp.company?.contacts ?? []}
                       noun="meeting"
                       onChange={load}
                     />
-                  )}
-
-                  {lostPromptFor === opp.id && (
-                    <div className="mt-2 space-y-1 rounded border bg-slate-50 p-2">
-                      <p className="font-medium text-slate-600">Reason for losing this opportunity:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {LOST_REASON_TAGS.map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            onClick={() => setLostReasonDraft(tag === "Other" ? "" : tag)}
-                            className="rounded-full border px-2 py-0.5 hover:bg-slate-100"
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                      </div>
-                      <input
-                        autoFocus
-                        className="w-full rounded border px-2 py-1"
-                        placeholder="Reason (required)"
-                        value={lostReasonDraft}
-                        onChange={(e) => setLostReasonDraft(e.target.value)}
-                      />
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          disabled={!lostReasonDraft.trim()}
-                          onClick={() => confirmLost(opp.id)}
-                          className="rounded bg-slate-900 px-2 py-1 text-white disabled:opacity-50"
-                        >
-                          Confirm Lost
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setLostPromptFor(null)}
-                          className="rounded border px-2 py-1 hover:bg-slate-100"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
                   )}
                 </div>
               ))}

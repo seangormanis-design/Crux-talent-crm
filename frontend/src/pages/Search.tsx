@@ -81,10 +81,10 @@ export default function Search() {
             {results.opportunities.map((o) => (
               <li key={o.id} className="flex items-center gap-1.5">
                 <RecordTypeDot kind="COMPANY" />
-                <Link to={`/companies/${o.company?.id}`} className={COMPANY_LINK_CLASS}>
+                <Link to={`/opportunities/${o.id}`} className={COMPANY_LINK_CLASS}>
                   {o.title}
                 </Link>{" "}
-                — {o.company?.name} ({o.stage.replaceAll("_", " ")})
+                — {o.company?.name ?? `${o.prospectCompanyName} (prospect)`} ({o.stage.replaceAll("_", " ")})
               </li>
             ))}
             {!results.opportunities.length && <li className="text-slate-400">No matches</li>}

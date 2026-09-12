@@ -27,6 +27,7 @@ interface Opportunity {
   title: string;
   stage: string;
   company?: { id: string; name: string };
+  prospectCompanyName?: string | null;
 }
 interface Results {
   people: Person[];
@@ -146,9 +147,9 @@ export default function GlobalSearch() {
                 label="Opportunities"
                 items={results.opportunities.map((o) => ({
                   key: o.id,
-                  to: `/companies/${o.company?.id}`,
+                  to: `/opportunities/${o.id}`,
                   primary: o.title,
-                  secondary: o.company?.name,
+                  secondary: o.company?.name ?? (o.prospectCompanyName ? `${o.prospectCompanyName} (prospect)` : undefined),
                   kind: "COMPANY" as const,
                 }))}
                 onSelect={(to) => {

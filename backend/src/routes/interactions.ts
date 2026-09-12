@@ -10,6 +10,14 @@ import { CLAUDE_MODEL } from "../lib/anthropicClient";
 
 export const interactionsRouter = Router();
 
+// Extract Intelligence and Reflect need a contact name/type regardless of
+// which side of the personId/targetContactId split this interaction is on —
+// a Target Contact is always a prospective Client Contact by definition.
+function contactNameAndType(interaction: { person: { firstName: string; surname: string | null; personType: string } | null; targetContact: { name: string } | null }): { name: string; personType: string } {
+  if (interaction.person) return { name: fullName(interaction.person), personType: interaction.person.personType };
+  return { name: interaction.targetContact?.name ?? "Unknown", personType: "CLIENT_CONTACT" };
+}
+
 const INTERACTION_TYPES = [
   "PHONE_CALL",
   "VIDEO_MEETING",
@@ -20,33 +28,44 @@ const INTERACTION_TYPES = [
   "TEXT",
 ] as const;
 
-const interactionSchema = z.object({
-  type: z.enum(INTERACTION_TYPES),
-  personId: z.string().uuid(),
-  jobId: z.string().uuid().optional(),
-  companyId: z.string().uuid().optional(),
-  notes: z.string().optional(),
-  // Optional Teams call transcript, pasted or uploaded at log time — can
-  // also be attached later via POST /:id/transcript once it becomes available.
-  transcript: optionalString,
-  occurredAt: z.coerce.date().optional(),
+// Exactly one of personId/targetContactId is required — a real Person or a
+// lightweight BD Target Contact (see CLAUDE.md's prospecting-layer rule).
+// Logging works identically either way; only the parent differs.
+const interactionSchema = z
+  .object({
+    type: z.enum(INTERACTION_TYPES),
+    personId: z.string().uuid().optional(),
+    targetContactId: z.string().uuid().optional(),
+    jobId: z.string().uuid().optional(),
+    companyId: z.string().uuid().optional(),
+    notes: z.string().optional(),
+    // Optional Teams call transcript, pasted or uploaded at log time — can
+    // also be attached later via POST /:id/transcript once it becomes available.
+    transcript: optionalString,
+    occurredAt: z.coerce.date().optional(),
 
-  // Optionally set (or clear) the person's follow-up reminder in the same
-  // request as logging this interaction, rather than a separate edit.
-  followUpAt: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
-  followUpNote: optionalString,
-});
+    // Optionally set (or clear) the person's follow-up reminder in the same
+    // request as logging this interaction, rather than a separate edit.
+    // Only meaningful for a real Person — Target Contacts have no follow-up field.
+    followUpAt: z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional()),
+    followUpNote: optionalString,
+  })
+  .refine((data) => !!data.personId !== !!data.targetContactId, {
+    message: "Exactly one of personId or targetContactId is required",
+    path: ["personId"],
+  });
 
 interactionsRouter.get("/", async (req, res) => {
-  const { personId, jobId, companyId } = req.query;
+  const { personId, targetContactId, jobId, companyId } = req.query;
 
   const interactions = await prisma.interaction.findMany({
     where: {
       personId: personId ? String(personId) : undefined,
+      targetContactId: targetContactId ? String(targetContactId) : undefined,
       jobId: jobId ? String(jobId) : undefined,
       companyId: companyId ? String(companyId) : undefined,
     },
-    include: { person: true, job: true, company: true },
+    include: { person: true, targetContact: true, job: true, company: true },
     orderBy: { occurredAt: "desc" },
   });
 
@@ -60,14 +79,14 @@ interactionsRouter.post("/", async (req: AuthenticatedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const { followUpAt, followUpNote, ...interactionFields } = parsed.data;
-  const settingFollowUp = followUpAt !== undefined;
+  const settingFollowUp = followUpAt !== undefined && !!parsed.data.personId;
 
   const [interaction] = await prisma.$transaction([
     prisma.interaction.create({
       data: { ...interactionFields, createdById: req.userId },
     }),
     ...(settingFollowUp
-      ? [prisma.person.update({ where: { id: parsed.data.personId }, data: { followUpAt, followUpNote } })]
+      ? [prisma.person.update({ where: { id: parsed.data.personId! }, data: { followUpAt, followUpNote } })]
       : []),
   ]);
 
@@ -82,18 +101,19 @@ interactionsRouter.post("/", async (req: AuthenticatedRequest, res) => {
 interactionsRouter.post("/:id/extract-intelligence", async (req, res) => {
   const interaction = await prisma.interaction.findUnique({
     where: { id: req.params.id },
-    include: { person: true, job: true, company: true },
+    include: { person: true, targetContact: true, job: true, company: true },
   });
   if (!interaction) return res.status(404).json({ error: "Interaction not found" });
   if (!interaction.notes?.trim()) {
     return res.status(400).json({ error: "This interaction has no notes to extract from" });
   }
 
+  const contact = contactNameAndType(interaction);
   let extracted;
   try {
     extracted = await extractIntelligence({
-      personName: fullName(interaction.person),
-      personType: interaction.person.personType,
+      personName: contact.name,
+      personType: contact.personType,
       companyName: interaction.company?.name,
       jobTitle: interaction.job?.title,
       notes: interaction.notes,
@@ -144,7 +164,7 @@ interactionsRouter.post("/:id/transcript", async (req, res) => {
 interactionsRouter.post("/:id/reflect", async (req: AuthenticatedRequest, res) => {
   const interaction = await prisma.interaction.findUnique({
     where: { id: req.params.id },
-    include: { person: true },
+    include: { person: true, targetContact: true },
   });
   if (!interaction) return res.status(404).json({ error: "Interaction not found" });
   if (!interaction.notes?.trim()) {
@@ -157,7 +177,7 @@ interactionsRouter.post("/:id/reflect", async (req: AuthenticatedRequest, res) =
   let content;
   try {
     content = await reflectOnCall({
-      personName: fullName(interaction.person),
+      personName: contactNameAndType(interaction).name,
       notes: interaction.notes,
       transcript: interaction.transcript,
       basis,

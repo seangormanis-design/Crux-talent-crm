@@ -15,6 +15,8 @@ export default function CompanyPicker({
   onChange,
   placeholder = "Search companies...",
   initialQuery,
+  allowCreate = true,
+  onQueryChange,
 }: {
   value: CompanyOption | null;
   onChange: (company: CompanyOption | null) => void;
@@ -23,6 +25,12 @@ export default function CompanyPicker({
   // without resolving it to a real company — the user still has to pick a
   // match or use "+ Create" themselves, same as typing it in by hand.
   initialQuery?: string;
+  // When false, hides "+ Create X" — used where the caller wants a
+  // lightweight free-text name instead of an immediately-created Company
+  // (e.g. a BD Opportunity's prospecting stage). Pair with onQueryChange to
+  // read the free-typed text whenever nothing is selected.
+  allowCreate?: boolean;
+  onQueryChange?: (query: string) => void;
 }) {
   const [query, setQuery] = useState(value?.name ?? initialQuery ?? "");
   const [options, setOptions] = useState<CompanyOption[]>([]);
@@ -78,6 +86,7 @@ export default function CompanyPicker({
           setQuery(e.target.value);
           setOpen(true);
           if (value) onChange(null);
+          onQueryChange?.(e.target.value);
         }}
       />
       {open && (
@@ -96,7 +105,7 @@ export default function CompanyPicker({
               {o.name}
             </button>
           ))}
-          {query.trim() && !exactMatch && (
+          {allowCreate && query.trim() && !exactMatch && (
             <button
               type="button"
               disabled={creating}

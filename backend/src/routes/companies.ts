@@ -79,7 +79,10 @@ companiesRouter.get("/:id", async (req, res) => {
       jobs: { include: { placement: true }, orderBy: { createdAt: "desc" } },
       placements: { include: { candidate: true, job: true }, orderBy: { startDate: "desc" } },
       opportunities: {
-        include: { scheduledEvents: { include: { contact: true }, orderBy: { scheduledAt: "asc" } } },
+        include: {
+          scheduledEvents: { include: { contact: true }, orderBy: { scheduledAt: "asc" } },
+          targetContacts: true,
+        },
         orderBy: { updatedAt: "desc" },
       },
       documents: { include: { versions: true } },

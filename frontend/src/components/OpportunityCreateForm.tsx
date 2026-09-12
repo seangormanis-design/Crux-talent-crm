@@ -4,15 +4,20 @@ import CompanyPicker, { CompanyOption } from "./CompanyPicker";
 
 interface CreatedOpportunity {
   id: string;
-  companyId: string;
+  companyId: string | null;
 }
 
 // The single Opportunity creation form — used on the BD Funnel page, on a
 // Company's Opportunities tab (with the company pre-filled), and when
 // approving a suggested Opportunity from Extract Intelligence (with the
-// company name and signal pre-filled, but not yet resolved to a real
-// Company — the CompanyPicker below handles finding or creating it). There
-// must only ever be this one form.
+// company name and signal pre-filled). There must only ever be this one form.
+//
+// The company field is deliberately lightweight, not the full CompanyPicker
+// flow: picking an existing match links a real Company as usual, but typing
+// a name that doesn't match anything is kept as free text (prospectCompanyName)
+// rather than immediately creating a Company record — see CLAUDE.md's BD
+// prospecting layer rule. No full Company record is required until the
+// Opportunity is converted automatically at Meeting Booked.
 export default function OpportunityCreateForm({
   initialCompany,
   initialCompanyQuery,
@@ -29,6 +34,7 @@ export default function OpportunityCreateForm({
   onCancel?: () => void;
 }) {
   const [company, setCompany] = useState<CompanyOption | null>(initialCompany ?? null);
+  const [companyText, setCompanyText] = useState(initialCompany?.name ?? initialCompanyQuery ?? "");
   const [title, setTitle] = useState(initialTitle ?? "");
   const [notes, setNotes] = useState(initialNotes ?? "");
   const [creating, setCreating] = useState(false);
@@ -36,15 +42,16 @@ export default function OpportunityCreateForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!company) {
-      setError("Pick or create the company this opportunity is with.");
+    if (!company && !companyText.trim()) {
+      setError("Enter the company this opportunity is with (an existing match, or just a name).");
       return;
     }
     setCreating(true);
     setError(null);
     try {
       const opportunity = await api.post<CreatedOpportunity>("/api/opportunities", {
-        companyId: company.id,
+        companyId: company?.id,
+        companyName: company ? undefined : companyText.trim(),
         title,
         notes: notes || undefined,
       });
@@ -62,8 +69,10 @@ export default function OpportunityCreateForm({
       <CompanyPicker
         value={company}
         onChange={setCompany}
+        onQueryChange={setCompanyText}
         initialQuery={initialCompanyQuery}
-        placeholder="Search or add a new company"
+        allowCreate={false}
+        placeholder="Company name — existing or a new prospect"
       />
       <input
         className="w-full rounded border px-3 py-2 text-sm"

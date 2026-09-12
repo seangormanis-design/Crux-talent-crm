@@ -16,6 +16,7 @@ import CompanyPicker, { CompanyOption } from "../components/CompanyPicker";
 import RecordTypeBadge from "../components/RecordTypeBadge";
 import RecordTypeDot from "../components/RecordTypeDot";
 import { fullName } from "../lib/personName";
+import { INTERACTION_TYPE_OPTIONS } from "../lib/interactionTypes";
 import {
   COMPANY_LINK_CLASS,
   RECORD_KIND_BORDER_CLASS,
@@ -476,16 +477,6 @@ function isOverdue(iso: string): boolean {
   today.setHours(0, 0, 0, 0);
   return new Date(iso) < today;
 }
-
-const INTERACTION_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: "PHONE_CALL", label: "Phone call" },
-  { value: "VIDEO_MEETING", label: "Video meeting" },
-  { value: "FACE_TO_FACE", label: "Face to face meeting" },
-  { value: "QUALIFICATION_CALL", label: "Main qualification" },
-  { value: "LINKEDIN_MESSAGE", label: "LinkedIn message" },
-  { value: "EMAIL", label: "Email" },
-  { value: "TEXT", label: "Text" },
-];
 
 // Guided template for Qualification Call notes — every section is optional
 // (leave anything blank that didn't come up) but gets its own text area so

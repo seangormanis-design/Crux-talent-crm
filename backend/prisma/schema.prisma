@@ -97,9 +97,15 @@ enum OpportunityStage {
 }
 
 model Opportunity {
-  id        String  @id @default(uuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id])
+  id        String   @id @default(uuid())
+  // Both nullable: a new Opportunity starts "lightweight" — just a
+  // plain-text company name (prospectCompanyName), no Company record yet.
+  // companyId is set once the Opportunity converts (see below), and from
+  // then on company.name is the source of truth; prospectCompanyName is
+  // kept only as a historical record of what was originally typed.
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  prospectCompanyName String?
 
   title String
   notes String?
@@ -117,10 +123,41 @@ model Opportunity {
   updatedAt DateTime @updatedAt
 
   scheduledEvents ScheduledEvent[]
+  targetContacts  TargetContact[]
 
   @@map("opportunities")
   @@index([companyId])
   @@index([stage])
+}
+
+// A lightweight prospecting contact attached to an Opportunity before a real
+// Client Contact exists — fast to add (name, optional job title/LinkedIn),
+// and interactions can be logged against one exactly as against a real
+// Person (see Interaction.targetContactId). Converted into a real Person
+// (personType CLIENT_CONTACT) automatically once the Opportunity reaches
+// Meeting Booked; convertedPersonId marks that this has happened and
+// prevents re-conversion. A Target Contact that's never converted (e.g. one
+// of several who didn't reply) simply stays part of the Opportunity's
+// history — nothing forces it to become a full record.
+model TargetContact {
+  id            String      @id @default(uuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  name        String
+  jobTitle    String?
+  linkedinUrl String?
+
+  convertedPersonId String? @unique
+  convertedPerson   Person? @relation("TargetContactConverted", fields: [convertedPersonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  interactions Interaction[]
+
+  @@map("target_contacts")
+  @@index([opportunityId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -233,6 +270,9 @@ model Person {
   // BD meetings this Client Contact is the meeting's contact for — distinct
   // from jobApplications, which is the candidate-side pipeline relation.
   meetingsAsContact ScheduledEvent[] @relation("ScheduledEventContact")
+  // Set if this Person was auto-created by converting a lightweight
+  // Target Contact (see TargetContact.convertedPersonId).
+  targetContactOrigin TargetContact? @relation("TargetContactConverted")
 
   @@map("people")
   @@index([personType])
@@ -558,8 +598,15 @@ model Interaction {
   notes  String?
   occurredAt DateTime     @default(now())
 
-  personId String
-  person   Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  // Exactly one of personId/targetContactId is set — a real Person (the
+  // established path) or a lightweight BD Target Contact, logged and
+  // displayed the same way either way (see CLAUDE.md). Both optional so a
+  // single model covers both; enforced at the API layer, same pattern as
+  // ScheduledEvent's jobCandidateId/opportunityId split.
+  personId String?
+  person   Person?  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  targetContactId String?
+  targetContact   TargetContact? @relation(fields: [targetContactId], references: [id], onDelete: Cascade)
   jobId    String?
   job      Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
   companyId String?
@@ -579,6 +626,7 @@ model Interaction {
 
   @@map("interactions")
   @@index([personId])
+  @@index([targetContactId])
   @@index([jobId])
   @@index([companyId])
 }

@@ -1,10 +1,12 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
-// Shared by CSV import and CV parsing review: both let the user type a
-// free-text company name rather than pick an existing Company by ID, so
-// both need the same "find it, or create it" resolution.
+// Shared by CSV import, CV parsing review, and BD Opportunity conversion
+// (see opportunityConversion.ts): all let the user type a free-text company
+// name rather than pick an existing Company by ID, so all need the same
+// "find it, or create it" resolution. Accepts a transaction client too, so
+// conversion can run atomically alongside its other writes.
 export async function resolveCompanyIdByName(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Prisma.TransactionClient,
   name: string | undefined
 ): Promise<string | undefined> {
   const trimmed = name?.trim();
