@@ -35,6 +35,19 @@ const FEE_TYPE_OPTIONS = [
   { value: "DAY_RATE_UPLIFT", label: "Day rate uplift" },
 ];
 
+// Candidate-level pipeline stage (JobCandidate.stage) — distinct from the
+// Job's own overall recruitment stage (STAGES above). Order matches the
+// natural funnel, Rejected last since it's a terminal branch off any point.
+const PIPELINE_STAGE_LABELS: Record<string, string> = {
+  SHORTLISTED: "Shortlisted",
+  CV_SENT: "CV Sent",
+  INTERVIEWING: "Interviewing",
+  OFFERED: "Offered",
+  PLACED: "Placed",
+  REJECTED: "Rejected",
+};
+const PIPELINE_STAGES = Object.keys(PIPELINE_STAGE_LABELS);
+
 export function JobsList() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -147,6 +160,11 @@ export function JobDetail() {
     load();
   }
 
+  async function changeCandidateStage(jobCandidateId: string, stage: string) {
+    await api.post(`/api/pipeline/${jobCandidateId}/stage`, { stage });
+    load();
+  }
+
   async function onToggleArchive() {
     await api.post(`/api/jobs/${id}/${job.archivedAt ? "unarchive" : "archive"}`);
     load();
@@ -191,8 +209,8 @@ export function JobDetail() {
 
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{job.title}</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-lg font-semibold">{job.title}</h1>
+          <p className="text-xs text-slate-500">
             {job.company?.name} · {job.location} · {job.workPreference}
           </p>
         </div>
@@ -200,6 +218,61 @@ export function JobDetail() {
           {job.archivedAt ? "Unarchive" : "Archive"}
         </button>
       </div>
+
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-medium">Candidate pipeline</h2>
+          <form onSubmit={addCandidate} className="flex gap-2">
+            <select
+              className="rounded border px-2 py-1.5 text-sm"
+              value={candidateId}
+              onChange={(e) => setCandidateId(e.target.value)}
+              required
+            >
+              <option value="">Add candidate...</option>
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {fullName(c)}
+                </option>
+              ))}
+            </select>
+            <button className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white">Add to pipeline</button>
+          </form>
+        </div>
+        <div className="flex gap-3 overflow-x-auto">
+          {PIPELINE_STAGES.map((stage) => {
+            const inStage = (job.candidates ?? []).filter((jc: any) => jc.stage === stage);
+            return (
+              <div key={stage} className="w-56 shrink-0 rounded border bg-white">
+                <div className="border-b bg-slate-100 px-3 py-2 text-sm font-medium">
+                  {PIPELINE_STAGE_LABELS[stage]} ({inStage.length})
+                </div>
+                <div className="space-y-2 p-2">
+                  {inStage.map((jc: any) => (
+                    <div key={jc.id} className="rounded border p-2 text-xs">
+                      <Link to={`/people/${jc.candidate.id}`} className="font-medium text-blue-600">
+                        {fullName(jc.candidate)}
+                      </Link>
+                      <select
+                        className="mt-1 w-full rounded border px-1 py-1 text-xs"
+                        value={jc.stage}
+                        onChange={(e) => changeCandidateStage(jc.id, e.target.value)}
+                      >
+                        {PIPELINE_STAGES.map((s) => (
+                          <option key={s} value={s}>
+                            {PIPELINE_STAGE_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                  {!inStage.length && <p className="px-1 py-2 text-center text-xs text-slate-400">—</p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <div className="space-y-6">
@@ -240,31 +313,6 @@ export function JobDetail() {
           idealSkillIds={(job.idealSkills ?? []).map((s: any) => s.id)}
           onChange={load}
         />
-      </section>
-
-      <section>
-        <h2 className="mb-2 font-medium">Candidates in pipeline</h2>
-        <form onSubmit={addCandidate} className="mb-2 flex gap-2 rounded border bg-white p-3">
-          <select className="flex-1 rounded border px-2 py-2 text-sm" value={candidateId} onChange={(e) => setCandidateId(e.target.value)} required>
-            <option value="">Add candidate...</option>
-            {candidates.map((c) => (
-              <option key={c.id} value={c.id}>
-                {fullName(c)}
-              </option>
-            ))}
-          </select>
-          <button className="rounded bg-slate-900 px-3 py-2 text-sm text-white">Add to pipeline</button>
-        </form>
-        <ul className="space-y-1 text-sm">
-          {job.candidates?.map((jc: any) => (
-            <li key={jc.id} className="rounded border bg-white p-2">
-              <Link to={`/people/${jc.candidate.id}`} className="text-blue-600">
-                {fullName(jc.candidate)}
-              </Link>{" "}
-              — {jc.stage.replaceAll("_", " ")}
-            </li>
-          ))}
-        </ul>
       </section>
 
       {suggestedCandidates.length > 0 && (
