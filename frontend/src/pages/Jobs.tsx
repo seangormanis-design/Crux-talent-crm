@@ -7,6 +7,7 @@ import RoleTypePicker from "../components/RoleTypePicker";
 import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import JobCreateForm from "../components/JobCreateForm";
+import CandidatePipelinePicker from "../components/CandidatePipelinePicker";
 import { fullName } from "../lib/personName";
 import { RECORD_KIND_BORDER_CLASS, RECORD_KIND_TEXT_CLASS, personLinkClass } from "../lib/recordColors";
 
@@ -157,8 +158,6 @@ export function JobsList() {
 export function JobDetail() {
   const { id } = useParams();
   const [job, setJob] = useState<any>(null);
-  const [candidates, setCandidates] = useState<any[]>([]);
-  const [candidateId, setCandidateId] = useState("");
   const [showPlacementForm, setShowPlacementForm] = useState(false);
   const [placementCandidateId, setPlacementCandidateId] = useState("");
   const [feeType, setFeeType] = useState("PERM_PERCENTAGE");
@@ -180,7 +179,6 @@ export function JobDetail() {
 
   useEffect(() => {
     load();
-    api.get<any[]>("/api/people?personType=CANDIDATE").then(setCandidates);
   }, [id]);
 
   async function changeStage(stage: string) {
@@ -188,10 +186,8 @@ export function JobDetail() {
     load();
   }
 
-  async function addCandidate(e: FormEvent) {
-    e.preventDefault();
+  async function addCandidate(candidateId: string) {
     await api.post("/api/pipeline", { jobId: id, candidateId });
-    setCandidateId("");
     load();
   }
 
@@ -382,22 +378,10 @@ export function JobDetail() {
             </nav>
           </div>
           {pipelineView === "board" && (
-          <form onSubmit={addCandidate} className="flex gap-2">
-            <select
-              className="rounded border px-2 py-1.5 text-sm"
-              value={candidateId}
-              onChange={(e) => setCandidateId(e.target.value)}
-              required
-            >
-              <option value="">Add candidate...</option>
-              {candidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {fullName(c)}
-                </option>
-              ))}
-            </select>
-            <button className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white">Add to pipeline</button>
-          </form>
+            <CandidatePipelinePicker
+              excludeIds={(job.candidates ?? []).map((jc: any) => jc.candidateId)}
+              onAdd={addCandidate}
+            />
           )}
         </div>
         {pipelineView === "board" && (
