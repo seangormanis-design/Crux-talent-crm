@@ -74,7 +74,13 @@ jobsRouter.get("/:id", async (req, res) => {
       idealSkills: true,
       roleTypes: true,
       owningContact: true,
-      candidates: { include: { candidate: true, stageChanges: { orderBy: { createdAt: "desc" } } } },
+      candidates: {
+        include: {
+          candidate: true,
+          stageChanges: { orderBy: { createdAt: "desc" } },
+          interviews: { orderBy: { scheduledAt: "asc" } },
+        },
+      },
       documents: { include: { versions: true } },
       interactions: { orderBy: { occurredAt: "desc" }, include: { person: true } },
       stageChanges: { orderBy: { createdAt: "desc" } },

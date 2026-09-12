@@ -326,10 +326,39 @@ model JobCandidate {
   updatedAt DateTime @updatedAt
 
   stageChanges StageChange[]
+  interviews   Interview[]
 
   @@unique([jobId, candidateId])
   @@map("job_candidates")
   @@index([stage])
+}
+
+enum InterviewFormat {
+  PHONE
+  VIDEO
+  FACE_TO_FACE
+}
+
+// One scheduled interview round for a candidate-job pairing. Multiple rows
+// per pairing are expected once a candidate is in Further Interviews —
+// numbered by scheduledAt order at display time rather than stored, so
+// there's no "interview number" to keep in sync. scheduledAt is a real
+// DateTime (not free text) specifically so this is ready to sync outward to
+// an actual calendar (Outlook/Google) later without a data migration.
+model Interview {
+  id             String          @id @default(uuid())
+  jobCandidateId String
+  jobCandidate   JobCandidate    @relation(fields: [jobCandidateId], references: [id], onDelete: Cascade)
+  scheduledAt    DateTime
+  format         InterviewFormat
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("interviews")
+  @@index([jobCandidateId])
+  @@index([scheduledAt])
 }
 
 // Append-only log of every stage transition, at job level or job-candidate level.

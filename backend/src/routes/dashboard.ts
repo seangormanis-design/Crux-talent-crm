@@ -22,6 +22,7 @@ dashboardRouter.get("/", async (_req, res) => {
     candidatesAwaitingResponse,
     followUps,
     invoicesDue,
+    upcomingInterviews,
   ] = await Promise.all([
       prisma.job.groupBy({ by: ["stage"], where: { archivedAt: null }, _count: { _all: true } }),
       prisma.job.findMany({
@@ -63,6 +64,14 @@ dashboardRouter.get("/", async (_req, res) => {
         orderBy: { invoiceDueDate: "asc" },
         take: 50,
       }),
+      // Every interview still in the future, soonest first — same
+      // no-time-window convention as the follow-up reminders feed.
+      prisma.interview.findMany({
+        where: { scheduledAt: { gte: now } },
+        include: { jobCandidate: { include: { candidate: true, job: { include: { company: true } } } } },
+        orderBy: { scheduledAt: "asc" },
+        take: 50,
+      }),
     ]);
 
   res.json({
@@ -74,6 +83,7 @@ dashboardRouter.get("/", async (_req, res) => {
       candidatesAwaitingResponse,
       followUps,
       invoicesDue,
+      upcomingInterviews,
     },
   });
 });

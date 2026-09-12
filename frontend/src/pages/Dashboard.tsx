@@ -20,8 +20,15 @@ interface DashboardData {
     candidatesAwaitingResponse: any[];
     followUps: any[];
     invoicesDue: any[];
+    upcomingInterviews: any[];
   };
 }
+
+const INTERVIEW_FORMAT_LABELS: Record<string, string> = {
+  PHONE: "Phone",
+  VIDEO: "Video/Teams",
+  FACE_TO_FACE: "Face to Face",
+};
 
 function isOverdue(iso: string): boolean {
   const today = new Date();
@@ -75,6 +82,24 @@ export default function Dashboard() {
               — {new Date(person.followUpAt).toLocaleDateString()}
               {isOverdue(person.followUpAt) ? " (overdue)" : ""}
               {person.followUpNote ? ` — ${person.followUpNote}` : ""}
+              </span>
+            </li>
+          ))}
+        </FeedBlock>
+
+        <FeedBlock title="Upcoming interviews">
+          {data.activityFeed.upcomingInterviews.map((interview) => (
+            <li key={interview.id} className="flex items-start gap-1.5">
+              <RecordTypeDot kind="CANDIDATE" className="mt-1" />
+              <span>
+                <Link to={`/people/${interview.jobCandidate.candidate.id}`} className={personLinkClass({ personType: "CANDIDATE" })}>
+                  {fullName(interview.jobCandidate.candidate)}
+                </Link>{" "}
+                — {interview.jobCandidate.job.title} ({interview.jobCandidate.job.company?.name}) —{" "}
+                {new Date(interview.scheduledAt).toLocaleDateString()}{" "}
+                {new Date(interview.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} —{" "}
+                {INTERVIEW_FORMAT_LABELS[interview.format]}
+                {interview.notes ? ` — ${interview.notes}` : ""}
               </span>
             </li>
           ))}
