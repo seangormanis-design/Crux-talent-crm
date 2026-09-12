@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: "/people", label: "People" },
   { to: "/jobs", label: "Jobs" },
   { to: "/pipeline", label: "Pipeline" },
+  { to: "/bd-funnel", label: "BD Funnel" },
   { to: "/placements", label: "Placements" },
   { to: "/call-profile", label: "Call Profile" },
 ];

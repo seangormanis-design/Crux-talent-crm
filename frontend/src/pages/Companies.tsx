@@ -6,6 +6,8 @@ import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import PersonCreateForm from "../components/PersonCreateForm";
 import JobCreateForm from "../components/JobCreateForm";
+import OpportunityCreateForm from "../components/OpportunityCreateForm";
+import { OPPORTUNITY_STAGE_LABELS, OPPORTUNITY_STAGES, LOST_REASON_TAGS } from "./BdFunnel";
 import RecordTypeDot from "../components/RecordTypeDot";
 import RecordTypeBadge from "../components/RecordTypeBadge";
 import { fullName } from "../lib/personName";
@@ -138,7 +140,7 @@ export function CompaniesList() {
   );
 }
 
-const COMPANY_TABS = ["Contacts", "Candidates", "Jobs", "Placements", "Interactions"] as const;
+const COMPANY_TABS = ["Contacts", "Candidates", "Jobs", "Opportunities", "Placements", "Interactions"] as const;
 type CompanyTab = (typeof COMPANY_TABS)[number];
 
 export function CompanyDetail() {
@@ -150,6 +152,9 @@ export function CompanyDetail() {
   const [showAddJob, setShowAddJob] = useState(false);
   const [showClosedJobs, setShowClosedJobs] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
+  const [showAddOpportunity, setShowAddOpportunity] = useState(false);
+  const [lostPromptFor, setLostPromptFor] = useState<string | null>(null);
+  const [lostReasonDraft, setLostReasonDraft] = useState("");
 
   function load() {
     api.get(`/api/companies/${id}`).then(setCompany);
@@ -164,6 +169,22 @@ export function CompanyDetail() {
 
   async function onToggleArchive() {
     await api.post(`/api/companies/${id}/${company.archivedAt ? "unarchive" : "archive"}`);
+    load();
+  }
+
+  function moveOpportunityStage(opportunityId: string, stage: string) {
+    if (stage === "LOST") {
+      setLostPromptFor(opportunityId);
+      setLostReasonDraft("");
+      return;
+    }
+    api.post(`/api/opportunities/${opportunityId}/stage`, { stage }).then(load);
+  }
+
+  async function confirmOpportunityLost(opportunityId: string) {
+    if (!lostReasonDraft.trim()) return;
+    await api.post(`/api/opportunities/${opportunityId}/stage`, { stage: "LOST", lostReason: lostReasonDraft.trim() });
+    setLostPromptFor(null);
     load();
   }
 
@@ -280,6 +301,7 @@ export function CompanyDetail() {
               {tab === "Contacts" && sortedContacts.length > 0 && ` (${sortedContacts.length})`}
               {tab === "Candidates" && sortedCandidates.length > 0 && ` (${sortedCandidates.length})`}
               {tab === "Jobs" && activeJobs.length + closedJobs.length > 0 && ` (${activeJobs.length + closedJobs.length})`}
+              {tab === "Opportunities" && company.opportunities?.length > 0 && ` (${company.opportunities.length})`}
               {tab === "Placements" && placements.length > 0 && ` (${placements.length})`}
               {tab === "Interactions" && company.interactions?.length > 0 && ` (${company.interactions.length})`}
             </button>
@@ -520,6 +542,101 @@ export function CompanyDetail() {
               )}
             </div>
           )}
+        </section>
+      )}
+
+      {activeTab === "Opportunities" && (
+        <section className="rounded border bg-white p-3 text-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-medium">Opportunities</h2>
+            <button
+              type="button"
+              onClick={() => setShowAddOpportunity((s) => !s)}
+              className="rounded border px-2 py-1 text-xs hover:bg-slate-100"
+            >
+              {showAddOpportunity ? "Cancel" : "+ Add opportunity"}
+            </button>
+          </div>
+
+          {showAddOpportunity && (
+            <OpportunityCreateForm
+              initialCompany={{ id: company.id, name: company.name }}
+              onCreated={() => {
+                setShowAddOpportunity(false);
+                load();
+              }}
+            />
+          )}
+
+          <ul className="space-y-1">
+            {(company.opportunities ?? []).map((o: any) => (
+              <li key={o.id} className="rounded border px-2 py-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span>
+                    {o.title}
+                    {o.notes && <span className="text-slate-500"> — {o.notes}</span>}
+                  </span>
+                  <select
+                    className="shrink-0 rounded border px-1 py-1 text-xs"
+                    value={o.stage}
+                    onChange={(e) => moveOpportunityStage(o.id, e.target.value)}
+                  >
+                    {OPPORTUNITY_STAGES.map((s) => (
+                      <option key={s} value={s}>
+                        {OPPORTUNITY_STAGE_LABELS[s]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {o.stage === "LOST" && o.lostReason && (
+                  <p className="mt-1 rounded bg-slate-50 px-1.5 py-1 text-xs text-slate-500">Lost: {o.lostReason}</p>
+                )}
+
+                {lostPromptFor === o.id && (
+                  <div className="mt-2 space-y-1 rounded border bg-slate-50 p-2 text-xs">
+                    <p className="font-medium text-slate-600">Reason for losing this opportunity:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {LOST_REASON_TAGS.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setLostReasonDraft(tag === "Other" ? "" : tag)}
+                          className="rounded-full border px-2 py-0.5 hover:bg-slate-100"
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      autoFocus
+                      className="w-full rounded border px-2 py-1"
+                      placeholder="Reason (required)"
+                      value={lostReasonDraft}
+                      onChange={(e) => setLostReasonDraft(e.target.value)}
+                    />
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        disabled={!lostReasonDraft.trim()}
+                        onClick={() => confirmOpportunityLost(o.id)}
+                        className="rounded bg-slate-900 px-2 py-1 text-white disabled:opacity-50"
+                      >
+                        Confirm Lost
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLostPromptFor(null)}
+                        className="rounded border px-2 py-1 hover:bg-slate-100"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+            {!(company.opportunities ?? []).length && <li className="text-slate-400">No opportunities yet</li>}
+          </ul>
         </section>
       )}
 

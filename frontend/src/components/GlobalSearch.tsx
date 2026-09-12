@@ -22,13 +22,20 @@ interface Job {
   title: string;
   company?: { name: string };
 }
+interface Opportunity {
+  id: string;
+  title: string;
+  stage: string;
+  company?: { id: string; name: string };
+}
 interface Results {
   people: Person[];
   companies: Company[];
   jobs: Job[];
+  opportunities: Opportunity[];
 }
 
-const EMPTY: Results = { people: [], companies: [], jobs: [] };
+const EMPTY: Results = { people: [], companies: [], jobs: [], opportunities: [] };
 
 export default function GlobalSearch() {
   const [q, setQ] = useState("");
@@ -72,8 +79,10 @@ export default function GlobalSearch() {
     if (e.key === "Escape") setOpen(false);
   }
 
-  const hasResults = results.people.length || results.companies.length || results.jobs.length;
-  const totalShown = results.people.length + results.companies.length + results.jobs.length;
+  const hasResults =
+    results.people.length || results.companies.length || results.jobs.length || results.opportunities.length;
+  const totalShown =
+    results.people.length + results.companies.length + results.jobs.length + results.opportunities.length;
 
   return (
     <div ref={containerRef} className="relative w-full max-w-md">
@@ -126,6 +135,20 @@ export default function GlobalSearch() {
                   to: `/jobs/${j.id}`,
                   primary: j.title,
                   secondary: j.company?.name,
+                }))}
+                onSelect={(to) => {
+                  setOpen(false);
+                  navigate(to);
+                }}
+              />
+              <ResultGroup
+                label="Opportunities"
+                items={results.opportunities.map((o) => ({
+                  key: o.id,
+                  to: `/companies/${o.company?.id}`,
+                  primary: o.title,
+                  secondary: o.company?.name,
+                  kind: "COMPANY" as const,
                 }))}
                 onSelect={(to) => {
                   setOpen(false);

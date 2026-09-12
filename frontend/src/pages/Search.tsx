@@ -9,6 +9,7 @@ interface Results {
   people: any[];
   companies: any[];
   jobs: any[];
+  opportunities: any[];
 }
 
 export default function Search() {
@@ -35,7 +36,7 @@ export default function Search() {
       />
 
       {results && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <ResultBlock title="People">
             {results.people.map((p) => (
               <li key={p.id} className="flex items-start gap-1.5">
@@ -74,6 +75,17 @@ export default function Search() {
               </li>
             ))}
             {!results.jobs.length && <li className="text-slate-400">No matches</li>}
+          </ResultBlock>
+          <ResultBlock title="Opportunities">
+            {results.opportunities.map((o) => (
+              <li key={o.id}>
+                <Link to={`/companies/${o.company?.id}`} className="text-blue-600">
+                  {o.title}
+                </Link>{" "}
+                — {o.company?.name} ({o.stage.replaceAll("_", " ")})
+              </li>
+            ))}
+            {!results.opportunities.length && <li className="text-slate-400">No matches</li>}
           </ResultBlock>
         </div>
       )}

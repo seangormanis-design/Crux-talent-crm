@@ -74,8 +74,51 @@ model Company {
   tags         TagLink[]
   placements   Placement[]
   candidateProspects CandidateProspect[]
+  opportunities Opportunity[]
 
   @@map("companies")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BD Opportunities — active new-business pursuits, distinct from a
+// Company's relationshipStatus (a passive flag). A company can have several
+// Opportunities over time (won one, later pursuing a second department) and
+// can hold an open Opportunity while already an Active Client elsewhere.
+// ─────────────────────────────────────────────────────────────
+
+enum OpportunityStage {
+  IDENTIFIED
+  RESEARCHED
+  CONTACTED
+  MEETING_BOOKED
+  PROPOSAL_SENT
+  WON
+  LOST
+}
+
+model Opportunity {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  title String
+  notes String?
+
+  stage OpportunityStage @default(IDENTIFIED)
+
+  // Required when stage = LOST (free text or a short tag like "Price" /
+  // "Timing" / "Chose competitor" / "Other") — cleared if the opportunity is
+  // later moved off Lost, since a stale reason would be misleading if it's
+  // revisited. There is deliberately no archive flag: a Lost opportunity
+  // stays visible and searchable in case it's worth pursuing again later.
+  lostReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("opportunities")
+  @@index([companyId])
+  @@index([stage])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -535,6 +578,11 @@ model InteractionIntelligence {
   marketSignals      Json
   followUpActions    Json
   notableQuotes      Json
+  // Market signals specifically shaped like a new-business opportunity for
+  // Crux Talent (e.g. "unhappy with current supplier", "expanding a team") —
+  // reviewed in the same nothing-auto-created, approve-or-dismiss screen as
+  // the rest of this extraction. Each item: { companyName, signal }.
+  suggestedOpportunities Json
 
   model     String
   createdAt DateTime @default(now())

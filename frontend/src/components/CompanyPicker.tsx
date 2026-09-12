@@ -14,19 +14,25 @@ export default function CompanyPicker({
   value,
   onChange,
   placeholder = "Search companies...",
+  initialQuery,
 }: {
   value: CompanyOption | null;
   onChange: (company: CompanyOption | null) => void;
   placeholder?: string;
+  // Pre-fills the search text (e.g. a company name suggested elsewhere)
+  // without resolving it to a real company — the user still has to pick a
+  // match or use "+ Create" themselves, same as typing it in by hand.
+  initialQuery?: string;
 }) {
-  const [query, setQuery] = useState(value?.name ?? "");
+  const [query, setQuery] = useState(value?.name ?? initialQuery ?? "");
   const [options, setOptions] = useState<CompanyOption[]>([]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!initialQuery);
   const [creating, setCreating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setQuery(value?.name ?? "");
+    setQuery(value?.name ?? initialQuery ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value?.id]);
 
   useEffect(() => {

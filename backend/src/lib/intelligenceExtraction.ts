@@ -1,12 +1,18 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropicClient, CLAUDE_MODEL } from "./anthropicClient";
 
+export interface SuggestedOpportunity {
+  companyName: string;
+  signal: string;
+}
+
 export interface ExtractedIntelligence {
   peopleMentioned: string[];
   companiesMentioned: string[];
   marketSignals: string[];
   followUpActions: string[];
   notableQuotes: string[];
+  suggestedOpportunities: SuggestedOpportunity[];
 }
 
 const EXTRACT_TOOL: Anthropic.Tool = {
@@ -41,8 +47,35 @@ const EXTRACT_TOOL: Anthropic.Tool = {
         items: { type: "string" },
         description: "Direct or closely paraphrased quotes worth remembering verbatim.",
       },
+      suggestedOpportunities: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            companyName: { type: "string", description: "The company the signal is about." },
+            signal: {
+              type: "string",
+              description: "The specific detail suggesting new business, in the recruiter's own terms.",
+            },
+          },
+          required: ["companyName", "signal"],
+          additionalProperties: false,
+        },
+        description:
+          "Market signals that specifically suggest a new-business opportunity for Crux Talent itself — e.g. " +
+          "a company unhappy with its current recruitment supplier, expanding a team, opening a new office or " +
+          "department. Distinct from marketSignals: only include something here if it's a concrete lead worth " +
+          "pursuing, not general market colour (rate benchmarks, hiring trends). Empty array when nothing qualifies.",
+      },
     },
-    required: ["peopleMentioned", "companiesMentioned", "marketSignals", "followUpActions", "notableQuotes"],
+    required: [
+      "peopleMentioned",
+      "companiesMentioned",
+      "marketSignals",
+      "followUpActions",
+      "notableQuotes",
+      "suggestedOpportunities",
+    ],
     additionalProperties: false,
   },
   strict: true,

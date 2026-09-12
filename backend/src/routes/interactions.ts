@@ -104,8 +104,8 @@ interactionsRouter.post("/:id/extract-intelligence", async (req, res) => {
 
   const intelligence = await prisma.interactionIntelligence.upsert({
     where: { interactionId: interaction.id },
-    update: { ...extracted, model: CLAUDE_MODEL },
-    create: { interactionId: interaction.id, ...extracted, model: CLAUDE_MODEL },
+    update: { ...extracted, model: CLAUDE_MODEL } as any,
+    create: { interactionId: interaction.id, ...extracted, model: CLAUDE_MODEL } as any,
   });
 
   res.json(intelligence);

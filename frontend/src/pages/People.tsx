@@ -11,6 +11,7 @@ import ReflectionPanel from "../components/ReflectionPanel";
 import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import PersonCreateForm from "../components/PersonCreateForm";
+import OpportunityCreateForm from "../components/OpportunityCreateForm";
 import CompanyPicker, { CompanyOption } from "../components/CompanyPicker";
 import RecordTypeBadge from "../components/RecordTypeBadge";
 import RecordTypeDot from "../components/RecordTypeDot";
@@ -523,7 +524,9 @@ function IntelligenceSummary({ intelligence }: { intelligence: any }) {
     { label: "Notable quotes", items: intelligence.notableQuotes ?? [] },
   ].filter((s) => s.items.length > 0);
 
-  if (!sections.length) {
+  const suggestedOpportunities: { companyName: string; signal: string }[] = intelligence.suggestedOpportunities ?? [];
+
+  if (!sections.length && !suggestedOpportunities.length) {
     return (
       <p className="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-400">
         Nothing extracted — the notes didn't contain anything for these categories.
@@ -543,6 +546,57 @@ function IntelligenceSummary({ intelligence }: { intelligence: any }) {
           </ul>
         </div>
       ))}
+      {!!suggestedOpportunities.length && (
+        <div>
+          <p className="font-medium text-slate-600">Suggested opportunities</p>
+          <div className="ml-3 space-y-1">
+            {suggestedOpportunities.map((s, i) => (
+              <SuggestedOpportunityRow key={i} suggestion={s} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One market signal shaped like a new-business opportunity — nothing is
+// auto-created. "Create Opportunity" opens the single Opportunity form
+// pre-filled with the suggested company and signal, so the user reviews and
+// confirms (picking or creating the company) before anything is saved;
+// "Dismiss" just hides it from this view.
+function SuggestedOpportunityRow({ suggestion }: { suggestion: { companyName: string; signal: string } }) {
+  const [status, setStatus] = useState<"pending" | "creating" | "dismissed" | "created">("pending");
+
+  if (status === "dismissed") return null;
+
+  if (status === "created") {
+    return <p className="text-green-700">✓ Opportunity created for {suggestion.companyName}</p>;
+  }
+
+  return (
+    <div className="rounded border bg-white p-2">
+      <p className="text-slate-600">
+        <span className="font-medium">{suggestion.companyName}</span> — {suggestion.signal}
+      </p>
+      {status === "creating" ? (
+        <OpportunityCreateForm
+          initialCompanyQuery={suggestion.companyName}
+          initialTitle={suggestion.signal}
+          initialNotes={suggestion.signal}
+          onCreated={() => setStatus("created")}
+          onCancel={() => setStatus("pending")}
+        />
+      ) : (
+        <div className="mt-1 flex gap-3">
+          <button type="button" onClick={() => setStatus("creating")} className="text-blue-600 hover:underline">
+            Create Opportunity
+          </button>
+          <button type="button" onClick={() => setStatus("dismissed")} className="text-slate-400 hover:underline">
+            Dismiss
+          </button>
+        </div>
+      )}
     </div>
   );
 }

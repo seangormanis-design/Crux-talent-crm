@@ -7,6 +7,7 @@ import { CompaniesList, CompanyDetail } from "./pages/Companies";
 import { PeopleList, PersonDetail } from "./pages/People";
 import { JobsList, JobDetail } from "./pages/Jobs";
 import Pipeline from "./pages/Pipeline";
+import BdFunnel from "./pages/BdFunnel";
 import Placements from "./pages/Placements";
 import Search from "./pages/Search";
 import Import from "./pages/Import";
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/jobs" element={<JobsList />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="/pipeline" element={<Pipeline />} />
+          <Route path="/bd-funnel" element={<BdFunnel />} />
           <Route path="/placements" element={<Placements />} />
           <Route path="/search" element={<Search />} />
           <Route path="/import" element={<Import />} />

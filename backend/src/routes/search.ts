@@ -3,18 +3,19 @@ import { prisma } from "../lib/prisma";
 
 export const searchRouter = Router();
 
-// Global search: People, Companies, and Jobs simultaneously, matching name,
-// email, phone, company name, job title, and notes/interaction text.
-// Results are grouped by type only (not a separate documents/interactions
-// group) — a note match surfaces the Person/Company it belongs to.
+// Global search: People, Companies, Jobs, and Opportunities simultaneously,
+// matching name, email, phone, company name, job title, and notes/interaction
+// text. Results are grouped by type only (not a separate documents/interactions
+// group) — a note match surfaces the Person/Company it belongs to. Lost
+// Opportunities are never excluded — they stay searchable indefinitely.
 searchRouter.get("/", async (req, res) => {
   const q = String(req.query.q ?? "").trim();
   const limit = Math.min(Number(req.query.limit) || 20, 50);
-  if (!q) return res.json({ people: [], companies: [], jobs: [] });
+  if (!q) return res.json({ people: [], companies: [], jobs: [], opportunities: [] });
 
   const contains = { contains: q, mode: "insensitive" as const };
 
-  const [people, companies, jobs] = await Promise.all([
+  const [people, companies, jobs, opportunities] = await Promise.all([
     prisma.person.findMany({
       where: {
         deletedAt: null,
@@ -57,7 +58,14 @@ searchRouter.get("/", async (req, res) => {
       include: { company: true },
       take: limit,
     }),
+    prisma.opportunity.findMany({
+      where: {
+        OR: [{ title: contains }, { notes: contains }, { lostReason: contains }, { company: { name: contains } }],
+      },
+      include: { company: true },
+      take: limit,
+    }),
   ]);
 
-  res.json({ people, companies, jobs });
+  res.json({ people, companies, jobs, opportunities });
 });

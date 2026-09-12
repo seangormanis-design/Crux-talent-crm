@@ -8,7 +8,7 @@ Crux Talent CRM is a bespoke CRM/ATS covering Companies, People (Candidates/Clie
 
 ### Single source of truth for creation
 
-For every entity in this system (Candidate, Client Contact, Company, Job, Interaction, Document, Placement, etc.), there must be exactly one form/flow used to create a new record of that type, used everywhere in the app that record type can be created — never a simplified or shortcut version alongside the full one.
+For every entity in this system (Candidate, Client Contact, Company, Job, Opportunity, Interaction, Document, Placement, etc.), there must be exactly one form/flow used to create a new record of that type, used everywhere in the app that record type can be created — never a simplified or shortcut version alongside the full one.
 
 When adding a "create new X" action anywhere in the app (a button on a related record's page, a quick-add widget, a bulk-import flow, etc.), it must open or call the existing single form for X, optionally pre-filling context-specific fields (like a linked company or job), rather than building a new, separate, simpler version of that form.
 
@@ -25,6 +25,7 @@ A genuinely different *mode* of creation isn't a violation on its own as long as
 
 - `PersonCreateForm`: the People page's "Add new Candidate"/"Add new Client Contact" buttons, and the Company detail page's "+ Add contact" (Contacts tab), both opening the identical form with `initialCompany` pre-filled where relevant.
 - `JobCreateForm`: the Jobs page's "New job" button, and the Company detail page's "+ Add Job" (a prominent button in the header area, which switches to the Jobs tab and opens the same form pre-filled via `initialCompanyId`) and "+ Add job" (the Jobs tab's own toggle for the same form). Any future "add a job from here" entry point should follow this same pattern — open `JobCreateForm` with context pre-filled, not a new form.
+- `OpportunityCreateForm`: the BD Funnel page's "New opportunity" button, the Company detail page's "+ Add opportunity" (Opportunities tab, pre-filled via `initialCompany`), and the Extract Intelligence review screen's "Create Opportunity" action on a suggested opportunity (pre-filled via `initialCompanyQuery`/`initialTitle`/`initialNotes` — the company isn't resolved to an ID yet, so the form's `CompanyPicker` is what finds or creates it on submit). Any future "add an opportunity from here" entry point should follow this same pattern.
 
 ### Linked Company must always be visible
 
@@ -53,3 +54,9 @@ Follow the established debounced-search-dropdown pattern (`CompanyPicker.tsx`, `
 ### Job stage vs Candidate pipeline stage
 
 `Job.stage` (`JobStage` enum) and `JobCandidate.stage` (`CandidateStage` enum) are two separate concepts that happen to share some value names (`OFFERED`, `PLACED`, `REJECTED`): the former is the job's own overall recruitment-process stage, the latter is one candidate's position in that job's pipeline. Changing one never changes the other — don't conflate them when building new stage-aware features (filters, dashboards, automations).
+
+### BD Opportunities vs Account Status
+
+A BD Opportunity (`Opportunity` model, stages Identified → Researched → Contacted → Meeting Booked → Proposal Sent → Won/Lost) tracks one active new-business pursuit against a Company. It is distinct from that Company's Account Status (`Company.relationshipStatus`: Prospect / Active Client / Dormant / Do Not Contact), which is a passive flag, not a pipeline — a company can hold an open Opportunity while already an Active Client elsewhere, and can have several Opportunities over time.
+
+Marking a BD Opportunity as Won automatically updates the linked Company's Account Status to Active Client. This is the only automatic status change tied to Opportunities — no other automatic actions occur on Won or Lost (no auto-created Job, no other field changes). Marking one Lost only requires a reason (free text or a short tag); the company's Account Status is left untouched. A Lost Opportunity is never archived or hidden — it stays visible and searchable in case it's worth revisiting later.
