@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { fullName } from "../lib/personName";
+import { RECORD_KIND_BORDER_CLASS, RECORD_KIND_TEXT_CLASS } from "../lib/recordColors";
 
 const CANDIDATE_STAGES = ["SHORTLISTED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"];
 
@@ -37,8 +38,11 @@ export default function Pipeline() {
             </div>
             <div className="space-y-2 p-2">
               {board[stage]?.map((pairing) => (
-                <div key={pairing.id} className="rounded border p-2 text-xs">
-                  <Link to={`/people/${pairing.candidate.id}`} className="font-medium text-blue-600">
+                <div
+                  key={pairing.id}
+                  className={`rounded border border-l-4 p-2 text-xs ${RECORD_KIND_BORDER_CLASS.CANDIDATE}`}
+                >
+                  <Link to={`/people/${pairing.candidate.id}`} className={`font-medium ${RECORD_KIND_TEXT_CLASS.CANDIDATE}`}>
                     {fullName(pairing.candidate)}
                   </Link>
                   <p className="text-slate-500">

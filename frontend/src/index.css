@@ -1,3 +1,21 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Record-type colour coding (see CLAUDE.md) — Candidates = green,
+   Companies = blue, Client Contacts = orange. Named variables so the
+   palette can be changed in one place; a -bg/-border tint of each is
+   provided for badges/left-borders that need to stay subtle. */
+:root {
+  --color-candidate: #16a34a;
+  --color-candidate-bg: #f0fdf4;
+  --color-candidate-border: #86efac;
+
+  --color-company: #2563eb;
+  --color-company-bg: #eff6ff;
+  --color-company-border: #93c5fd;
+
+  --color-client-contact: #ea580c;
+  --color-client-contact-bg: #fff7ed;
+  --color-client-contact-border: #fdba74;
+}

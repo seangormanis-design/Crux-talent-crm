@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { fullName } from "../lib/personName";
+import RecordTypeDot from "./RecordTypeDot";
+import { RecordKind, personRecordKind } from "../lib/recordColors";
 
 interface Person {
   id: string;
@@ -97,6 +99,7 @@ export default function GlobalSearch() {
                   to: `/people/${p.id}`,
                   primary: fullName(p),
                   secondary: p.currentTitle ?? p.jobTitle,
+                  kind: personRecordKind(p),
                 }))}
                 onSelect={(to) => {
                   setOpen(false);
@@ -105,7 +108,12 @@ export default function GlobalSearch() {
               />
               <ResultGroup
                 label="Companies"
-                items={results.companies.map((c) => ({ key: c.id, to: `/companies/${c.id}`, primary: c.name }))}
+                items={results.companies.map((c) => ({
+                  key: c.id,
+                  to: `/companies/${c.id}`,
+                  primary: c.name,
+                  kind: "COMPANY" as const,
+                }))}
                 onSelect={(to) => {
                   setOpen(false);
                   navigate(to);
@@ -144,7 +152,7 @@ function ResultGroup({
   onSelect,
 }: {
   label: string;
-  items: { key: string; to: string; primary: string; secondary?: string }[];
+  items: { key: string; to: string; primary: string; secondary?: string; kind?: RecordKind }[];
   onSelect: (to: string) => void;
 }) {
   if (!items.length) return null;
@@ -156,8 +164,9 @@ function ResultGroup({
           key={item.key}
           type="button"
           onClick={() => onSelect(item.to)}
-          className="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+          className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-sm hover:bg-slate-50"
         >
+          {item.kind && <RecordTypeDot kind={item.kind} />}
           {item.primary}
           {item.secondary ? <span className="text-slate-400"> — {item.secondary}</span> : null}
         </button>

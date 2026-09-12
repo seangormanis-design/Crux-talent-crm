@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
+import { COMPANY_LINK_CLASS, RECORD_KIND_TEXT_CLASS } from "../lib/recordColors";
 
 type ImportKind = "CANDIDATE" | "CLIENT_CONTACT" | "COMPANY";
 
@@ -286,11 +287,14 @@ export default function Import() {
                     <li key={i}>
                       "{d.row.name ?? [d.row.firstName, d.row.surname].filter(Boolean).join(" ")}" matched{" "}
                       {d.existingPersonId ? (
-                        <Link to={`/people/${d.existingPersonId}`} className="text-blue-600">
+                        <Link
+                          to={`/people/${d.existingPersonId}`}
+                          className={RECORD_KIND_TEXT_CLASS[kind === "CLIENT_CONTACT" ? "CLIENT_CONTACT" : "CANDIDATE"]}
+                        >
                           {d.existingPersonName}
                         </Link>
                       ) : (
-                        <Link to={`/companies/${d.existingCompanyId}`} className="text-blue-600">
+                        <Link to={`/companies/${d.existingCompanyId}`} className={COMPANY_LINK_CLASS}>
                           existing company
                         </Link>
                       )}

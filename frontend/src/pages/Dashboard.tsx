@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { fullName } from "../lib/personName";
 import CvDropCreatePanel from "../components/CvDropCreatePanel";
+import RecordTypeDot from "../components/RecordTypeDot";
+import { COMPANY_LINK_CLASS, personLinkClass, personRecordKind } from "../lib/recordColors";
 
 interface StageCount {
   stage: string;
@@ -61,16 +63,19 @@ export default function Dashboard() {
 
         <FeedBlock title="Follow-up reminders">
           {data.activityFeed.followUps.map((person) => (
-            <li key={person.id}>
+            <li key={person.id} className="flex items-start gap-1.5">
+              <RecordTypeDot kind={personRecordKind(person)} className="mt-1" />
+              <span>
               <Link
                 to={`/people/${person.id}`}
-                className={isOverdue(person.followUpAt) ? "font-medium text-red-600" : "text-blue-600"}
+                className={isOverdue(person.followUpAt) ? "font-medium text-red-600" : personLinkClass(person)}
               >
                 {fullName(person)}
               </Link>{" "}
               — {new Date(person.followUpAt).toLocaleDateString()}
               {isOverdue(person.followUpAt) ? " (overdue)" : ""}
               {person.followUpNote ? ` — ${person.followUpNote}` : ""}
+              </span>
             </li>
           ))}
         </FeedBlock>
@@ -80,7 +85,7 @@ export default function Dashboard() {
             <li key={placement.id}>
               <Link
                 to={`/companies/${placement.company.id}`}
-                className={isOverdue(placement.invoiceDueDate) ? "font-medium text-red-600" : "text-blue-600"}
+                className={isOverdue(placement.invoiceDueDate) ? "font-medium text-red-600" : COMPANY_LINK_CLASS}
               >
                 Invoice {isOverdue(placement.invoiceDueDate) ? "overdue" : "due"} for {placement.company?.name}
               </Link>{" "}
@@ -121,9 +126,19 @@ export default function Dashboard() {
 
         <FeedBlock title="Recent interactions">
           {data.activityFeed.recentInteractions.map((interaction) => (
-            <li key={interaction.id}>
-              {interaction.type.replaceAll("_", " ")} — {interaction.person ? fullName(interaction.person) : ""} —{" "}
-              {new Date(interaction.occurredAt).toLocaleString()}
+            <li key={interaction.id} className="flex items-start gap-1.5">
+              {interaction.person && <RecordTypeDot kind={personRecordKind(interaction.person)} className="mt-1" />}
+              <span>
+                {interaction.type.replaceAll("_", " ")} —{" "}
+                {interaction.person ? (
+                  <Link to={`/people/${interaction.person.id}`} className={personLinkClass(interaction.person)}>
+                    {fullName(interaction.person)}
+                  </Link>
+                ) : (
+                  ""
+                )}{" "}
+                — {new Date(interaction.occurredAt).toLocaleString()}
+              </span>
             </li>
           ))}
         </FeedBlock>

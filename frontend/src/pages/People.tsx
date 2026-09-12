@@ -12,7 +12,15 @@ import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import PersonCreateForm from "../components/PersonCreateForm";
 import CompanyPicker, { CompanyOption } from "../components/CompanyPicker";
+import RecordTypeBadge from "../components/RecordTypeBadge";
+import RecordTypeDot from "../components/RecordTypeDot";
 import { fullName } from "../lib/personName";
+import {
+  COMPANY_LINK_CLASS,
+  RECORD_KIND_BORDER_CLASS,
+  personLinkClass,
+  personRecordKind,
+} from "../lib/recordColors";
 
 interface Person {
   id: string;
@@ -403,14 +411,17 @@ export function PeopleList() {
           </thead>
           <tbody>
             {sortedPeople.map((p) => (
-              <tr key={p.id} className={`border-t ${p.archivedAt ? "opacity-50" : ""}`}>
+              <tr
+                key={p.id}
+                className={`border-t border-l-4 ${RECORD_KIND_BORDER_CLASS[personRecordKind(p)]} ${p.archivedAt ? "opacity-50" : ""}`}
+              >
                 <td className="whitespace-nowrap px-3 py-2">
-                  <Link to={`/people/${p.id}`} className="text-blue-600">
+                  <Link to={`/people/${p.id}`} className={personLinkClass(p)}>
                     {p.firstName}
                   </Link>
                 </td>
                 <td className="whitespace-nowrap px-3 py-2">
-                  <Link to={`/people/${p.id}`} className="text-blue-600">
+                  <Link to={`/people/${p.id}`} className={personLinkClass(p)}>
                     {p.surname || "—"}
                   </Link>
                   {p.archivedAt && (
@@ -668,13 +679,15 @@ export function PersonDetail() {
       )}
 
       {person.linkedPerson ? (
-        <div className="flex items-center justify-between rounded border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
+        <div className="flex items-center justify-between rounded border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700">
           <p>
             Also linked to{" "}
-            <Link to={`/people/${person.linkedPerson.id}`} className="font-medium text-blue-700 underline">
+            <Link to={`/people/${person.linkedPerson.id}`} className={`font-medium underline ${personLinkClass(person.linkedPerson)}`}>
               {fullName(person.linkedPerson)}
             </Link>{" "}
-            ({person.linkedPerson.personType === "CANDIDATE" ? "Candidate" : "Client contact"})
+            <RecordTypeBadge kind={personRecordKind(person.linkedPerson)}>
+              {person.linkedPerson.personType === "CANDIDATE" ? "Candidate" : "Client Contact"}
+            </RecordTypeBadge>
             {person.isPrimaryLink && " — this is their primary role"}
           </p>
           <div className="flex shrink-0 gap-2">
@@ -753,7 +766,8 @@ export function PersonDetail() {
 
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            <RecordTypeDot kind={personRecordKind(person)} className="h-2.5 w-2.5" />
             <InlineField
               value={person.firstName}
               placeholder="First name"
@@ -979,9 +993,9 @@ export function PersonDetail() {
                 <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">transcript attached</span>
               )}
               {person.linkedPerson && i.sourcePersonId === person.linkedPerson.id && (
-                <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
+                <RecordTypeBadge kind={personRecordKind(person.linkedPerson)} className="ml-2">
                   via {fullName(person.linkedPerson)}
-                </span>
+                </RecordTypeBadge>
               )}
               {i.notes?.trim() && (
                 <div>
@@ -1296,7 +1310,7 @@ function CompanyLinkField({
   return (
     <div className="group/field flex items-center gap-1">
       {company ? (
-        <Link to={`/companies/${company.id}`} className="rounded px-2 py-1 text-blue-600 hover:bg-slate-100">
+        <Link to={`/companies/${company.id}`} className={`rounded px-2 py-1 hover:bg-slate-100 ${COMPANY_LINK_CLASS}`}>
           {company.name}
         </Link>
       ) : (

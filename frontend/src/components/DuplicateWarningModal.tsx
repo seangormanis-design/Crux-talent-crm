@@ -1,4 +1,5 @@
 import { fullName } from "../lib/personName";
+import { RECORD_KIND_BORDER_CLASS, personRecordKind } from "../lib/recordColors";
 
 interface CandidateInput {
   firstName: string;
@@ -50,7 +51,7 @@ export default function DuplicateWarningModal({
 
         <div className="mb-4 space-y-3">
           {matches.map(({ person, matchedOn }) => (
-            <div key={person.id} className="rounded border p-3">
+            <div key={person.id} className={`rounded border border-l-4 p-3 ${RECORD_KIND_BORDER_CLASS[personRecordKind(person)]}`}>
               <p className="mb-2 text-xs font-medium uppercase text-amber-600">
                 Matched on: {matchedOn.join(", ")}
               </p>

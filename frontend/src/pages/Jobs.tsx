@@ -8,6 +8,7 @@ import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import JobCreateForm from "../components/JobCreateForm";
 import { fullName } from "../lib/personName";
+import { RECORD_KIND_BORDER_CLASS, RECORD_KIND_TEXT_CLASS, personLinkClass } from "../lib/recordColors";
 
 interface Job {
   id: string;
@@ -249,8 +250,8 @@ export function JobDetail() {
                 </div>
                 <div className="space-y-2 p-2">
                   {inStage.map((jc: any) => (
-                    <div key={jc.id} className="rounded border p-2 text-xs">
-                      <Link to={`/people/${jc.candidate.id}`} className="font-medium text-blue-600">
+                    <div key={jc.id} className={`rounded border border-l-4 p-2 text-xs ${RECORD_KIND_BORDER_CLASS.CANDIDATE}`}>
+                      <Link to={`/people/${jc.candidate.id}`} className={`font-medium ${RECORD_KIND_TEXT_CLASS.CANDIDATE}`}>
                         {fullName(jc.candidate)}
                       </Link>
                       <select
@@ -324,9 +325,12 @@ export function JobDetail() {
           </p>
           <ul className="space-y-1 text-sm">
             {suggestedCandidates.map((s: any) => (
-              <li key={s.candidate.id} className="flex items-center justify-between rounded border bg-white p-2">
+              <li
+                key={s.candidate.id}
+                className={`flex items-center justify-between rounded border border-l-4 bg-white p-2 ${RECORD_KIND_BORDER_CLASS.CANDIDATE}`}
+              >
                 <span>
-                  <Link to={`/people/${s.candidate.id}`} className="text-blue-600">
+                  <Link to={`/people/${s.candidate.id}`} className={RECORD_KIND_TEXT_CLASS.CANDIDATE}>
                     {fullName(s.candidate)}
                   </Link>
                   {s.candidate.seniority && <span className="text-slate-500"> — {s.candidate.seniority}</span>}
@@ -356,7 +360,7 @@ export function JobDetail() {
         {job.placement ? (
           <div className="text-sm">
             <p>
-              <Link to={`/people/${job.placement.candidate.id}`} className="text-blue-600">
+              <Link to={`/people/${job.placement.candidate.id}`} className={RECORD_KIND_TEXT_CLASS.CANDIDATE}>
                 {fullName(job.placement.candidate)}
               </Link>{" "}
               placed — {FEE_TYPE_OPTIONS.find((f) => f.value === job.placement.feeType)?.label ?? job.placement.feeType},
@@ -470,7 +474,7 @@ export function JobDetail() {
             <li key={i.id} className="rounded border bg-white p-2">
               <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
               {i.type.replaceAll("_", " ")} —{" "}
-              <Link to={`/people/${i.person.id}`} className="text-blue-600">
+              <Link to={`/people/${i.person.id}`} className={personLinkClass(i.person)}>
                 {fullName(i.person)}
               </Link>{" "}
               — <span className="whitespace-pre-wrap">{i.notes}</span>

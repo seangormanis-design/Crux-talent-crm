@@ -6,7 +6,10 @@ import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import PersonCreateForm from "../components/PersonCreateForm";
 import JobCreateForm from "../components/JobCreateForm";
+import RecordTypeDot from "../components/RecordTypeDot";
+import RecordTypeBadge from "../components/RecordTypeBadge";
 import { fullName } from "../lib/personName";
+import { COMPANY_LINK_CLASS, RECORD_KIND_BORDER_CLASS, personLinkClass, personRecordKind } from "../lib/recordColors";
 
 interface Company {
   id: string;
@@ -112,9 +115,12 @@ export function CompaniesList() {
           </thead>
           <tbody>
             {companies.map((c) => (
-              <tr key={c.id} className={`border-t ${c.archivedAt ? "opacity-50" : ""}`}>
+              <tr
+                key={c.id}
+                className={`border-t border-l-4 ${RECORD_KIND_BORDER_CLASS.COMPANY} ${c.archivedAt ? "opacity-50" : ""}`}
+              >
                 <td className="px-3 py-2">
-                  <Link to={`/companies/${c.id}`} className="text-blue-600">
+                  <Link to={`/companies/${c.id}`} className={COMPANY_LINK_CLASS}>
                     {c.name}
                   </Link>
                   {c.archivedAt && (
@@ -202,14 +208,15 @@ export function CompanyDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company]);
 
-  // Every interaction logged against any Contact linked to this company,
-  // combined into one feed — distinct from the Interactions tab, which only
-  // shows interactions logged directly against the Company itself.
+  // Every interaction logged against any Contact or Candidate linked to this
+  // company, combined into one feed — distinct from the Interactions tab,
+  // which only shows interactions logged directly against the Company
+  // itself. Covers both sides so a colour-coded dot per row is what tells
+  // you, at a glance, whether that entry was with a Client Contact or a
+  // Candidate.
   const combinedContactActivity = useMemo(() => {
-    const contacts = company?.contacts ?? [];
-    const entries = contacts.flatMap((p: any) =>
-      (p.interactions ?? []).map((i: any) => ({ ...i, contact: p }))
-    );
+    const people = [...(company?.contacts ?? []), ...(company?.employeesAt ?? [])];
+    const entries = people.flatMap((p: any) => (p.interactions ?? []).map((i: any) => ({ ...i, contact: p })));
     return entries.sort((a: any, b: any) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
   }, [company]);
 
@@ -314,7 +321,7 @@ export function CompanyDetail() {
 
       <section className="rounded border bg-white p-3 text-sm">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-medium">Contact activity</h2>
+          <h2 className="font-medium">Activity</h2>
           {combinedContactActivity.length > ACTIVITY_PREVIEW_COUNT && (
             <button
               type="button"
@@ -329,7 +336,7 @@ export function CompanyDetail() {
           <table className="w-full text-sm">
             <thead className="bg-slate-100 text-left">
               <tr>
-                <th className="px-2 py-1.5">Contact</th>
+                <th className="px-2 py-1.5">Person</th>
                 <th className="px-2 py-1.5">Type</th>
                 <th className="px-2 py-1.5">Date</th>
               </tr>
@@ -338,9 +345,12 @@ export function CompanyDetail() {
               {visibleActivity.map((i: any) => (
                 <tr key={i.id} className="border-t">
                   <td className="px-2 py-1.5">
-                    <Link to={`/people/${i.contact.id}`} className="text-blue-600">
-                      {fullName(i.contact)}
-                    </Link>
+                    <span className="flex items-center gap-1.5">
+                      <RecordTypeDot kind={personRecordKind(i.contact)} />
+                      <Link to={`/people/${i.contact.id}`} className={personLinkClass(i.contact)}>
+                        {fullName(i.contact)}
+                      </Link>
+                    </span>
                   </td>
                   <td className="px-2 py-1.5 text-slate-500">{i.type.replaceAll("_", " ")}</td>
                   <td className="px-2 py-1.5 text-xs text-slate-400">{new Date(i.occurredAt).toLocaleDateString()}</td>
@@ -349,7 +359,7 @@ export function CompanyDetail() {
               {!combinedContactActivity.length && (
                 <tr>
                   <td colSpan={3} className="px-2 py-3 text-center text-slate-400">
-                    No contact activity yet
+                    No activity yet
                   </td>
                 </tr>
               )}
@@ -384,16 +394,19 @@ export function CompanyDetail() {
               const lastInteraction = p.interactions?.[0]?.occurredAt;
               const linked = linkedRecordOf(p);
               return (
-                <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
+                <li
+                  key={p.id}
+                  className={`flex items-center justify-between rounded border border-l-4 px-2 py-1.5 ${RECORD_KIND_BORDER_CLASS.CLIENT_CONTACT}`}
+                >
                   <span>
-                    <Link to={`/people/${p.id}`} className="text-blue-600">
+                    <Link to={`/people/${p.id}`} className={personLinkClass(p)}>
                       {fullName(p)}
                     </Link>{" "}
                     {p.jobTitle && <span className="text-slate-500">— {p.jobTitle}</span>}
                     {linked && linked.personType === "CANDIDATE" && (
-                      <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
+                      <RecordTypeBadge kind="CANDIDATE" className="ml-2">
                         Also linked as Candidate
-                      </span>
+                      </RecordTypeBadge>
                     )}
                   </span>
                   <span className="text-xs text-slate-400">
@@ -421,16 +434,19 @@ export function CompanyDetail() {
               const lastInteraction = p.interactions?.[0]?.occurredAt;
               const linked = linkedRecordOf(p);
               return (
-                <li key={p.id} className="flex items-center justify-between rounded border px-2 py-1.5">
+                <li
+                  key={p.id}
+                  className={`flex items-center justify-between rounded border border-l-4 px-2 py-1.5 ${RECORD_KIND_BORDER_CLASS.CANDIDATE}`}
+                >
                   <span>
-                    <Link to={`/people/${p.id}`} className="text-blue-600">
+                    <Link to={`/people/${p.id}`} className={personLinkClass(p)}>
                       {fullName(p)}
                     </Link>{" "}
                     {p.currentTitle && <span className="text-slate-500">— {p.currentTitle}</span>}
                     {linked && linked.personType === "CLIENT_CONTACT" && (
-                      <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
+                      <RecordTypeBadge kind="CLIENT_CONTACT" className="ml-2">
                         Also linked as Client Contact
-                      </span>
+                      </RecordTypeBadge>
                     )}
                   </span>
                   <span className="text-xs text-slate-400">
@@ -565,7 +581,7 @@ export function CompanyDetail() {
                   <div className="flex items-center justify-between">
                     <span>
                       {p.candidate ? (
-                        <Link to={`/people/${p.candidate.id}`} className="text-blue-600">
+                        <Link to={`/people/${p.candidate.id}`} className={personLinkClass(p.candidate)}>
                           {fullName(p.candidate)}
                         </Link>
                       ) : (

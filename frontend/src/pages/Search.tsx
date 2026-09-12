@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { fullName } from "../lib/personName";
+import RecordTypeDot from "../components/RecordTypeDot";
+import { COMPANY_LINK_CLASS, personLinkClass, personRecordKind } from "../lib/recordColors";
 
 interface Results {
   people: any[];
@@ -36,8 +38,9 @@ export default function Search() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <ResultBlock title="People">
             {results.people.map((p) => (
-              <li key={p.id}>
-                <Link to={`/people/${p.id}`} className="text-blue-600">
+              <li key={p.id} className="flex items-start gap-1.5">
+                <RecordTypeDot kind={personRecordKind(p)} className="mt-1" />
+                <Link to={`/people/${p.id}`} className={personLinkClass(p)}>
                   {fullName(p)}
                 </Link>
                 <span className="text-slate-400">
@@ -52,8 +55,9 @@ export default function Search() {
           </ResultBlock>
           <ResultBlock title="Companies">
             {results.companies.map((c) => (
-              <li key={c.id}>
-                <Link to={`/companies/${c.id}`} className="text-blue-600">
+              <li key={c.id} className="flex items-center gap-1.5">
+                <RecordTypeDot kind="COMPANY" />
+                <Link to={`/companies/${c.id}`} className={COMPANY_LINK_CLASS}>
                   {c.name}
                 </Link>
               </li>

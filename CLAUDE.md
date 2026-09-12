@@ -26,3 +26,9 @@ A genuinely different *mode* of creation isn't a violation on its own as long as
 Any record with a linked Company (Candidate's current employer, Client Contact's employer, or similar future relationships) must display that company clearly in the main details area, as a clickable hyperlink to the Company's record page — not buried, omitted, or shown as plain unlinked text.
 
 This applies automatically to any future record type that gains a Company link — check for it, and add the same clearly-visible, clickable-link treatment, rather than letting the display standard drift between record types.
+
+### Record-type colour coding
+
+Candidates = green, Companies = blue, Client Contacts = orange, applied via named theme variables (`--color-candidate`, `--color-company`, `--color-client-contact`, defined in `frontend/src/index.css`, with `-bg`/`-border` tints of each for subtle badges/left-borders). Any new UI element displaying or referencing these record types (lists, badges, cards, links, icons) must use this colour scheme by default, not an arbitrary or default colour.
+
+Keep it subtle — a coloured left-border, small dot, or tinted badge, not solid colour blocks. Use `frontend/src/lib/recordColors.ts` (the Tailwind arbitrary-value classes mapped from the variables) plus the `RecordTypeDot`/`RecordTypeBadge` components rather than hand-rolling new colour logic per file.

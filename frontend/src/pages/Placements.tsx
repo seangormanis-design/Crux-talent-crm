@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import InlineField from "../components/InlineField";
 import { fullName } from "../lib/personName";
+import { RECORD_KIND_BORDER_CLASS, RECORD_KIND_TEXT_CLASS } from "../lib/recordColors";
 
 interface Placement {
   id: string;
@@ -84,10 +85,10 @@ export default function Placements() {
               const unpaidOverdue =
                 p.invoiceStatus !== "PAID" && p.invoiceStatus !== "CANCELLED" && isPastDue(p.invoiceDueDate);
               return (
-                <tr key={p.id} className="border-t">
+                <tr key={p.id} className={`border-t border-l-4 ${RECORD_KIND_BORDER_CLASS.CANDIDATE}`}>
                   <td className="whitespace-nowrap px-3 py-2">
                     {p.candidate ? (
-                      <Link to={`/people/${p.candidate.id}`} className="text-blue-600">
+                      <Link to={`/people/${p.candidate.id}`} className={RECORD_KIND_TEXT_CLASS.CANDIDATE}>
                         {fullName(p.candidate)}
                       </Link>
                     ) : (
