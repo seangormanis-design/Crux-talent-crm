@@ -620,6 +620,17 @@ model DocumentVersion {
   uploadedAt  DateTime @default(now())
   note        String?
 
+  // Plain text pulled from the file at upload time (CV document types only —
+  // see documents.ts) so every CV version, not just the current one, is
+  // full-text searchable. Left null for non-CV document types and for any
+  // file text extraction couldn't handle.
+  extractedText String? @db.Text
+  // Generated/indexed by the migration's raw SQL (STORED, from
+  // extractedText) — Prisma can't express a generated column, so it's
+  // marked Unsupported here purely so introspection/diffing leaves it alone;
+  // query it via $queryRaw.
+  searchVector Unsupported("tsvector")?
+
   @@unique([documentId, versionNo])
   @@map("document_versions")
 }
@@ -668,6 +679,12 @@ model Interaction {
   // just what got written down.
   transcript String? @db.Text
 
+  // Generated/indexed by the migration's raw SQL (STORED, from notes —
+  // which already contains every Qualification Call section, concatenated
+  // with labeled headers, since that's how notes gets built for that type).
+  // See DocumentVersion.searchVector for why this is Unsupported here.
+  searchVector Unsupported("tsvector")?
+
   intelligence InteractionIntelligence?
   reflection   CallReflection?
 
@@ -696,6 +713,15 @@ model InteractionIntelligence {
   // reviewed in the same nothing-auto-created, approve-or-dismiss screen as
   // the rest of this extraction. Each item: { companyName, signal }.
   suggestedOpportunities Json
+
+  // Candidate skills mentioned in the call notes that aren't tagged on the
+  // Person yet, found with the same fuzzy/synonym matching used for CV
+  // parsing (cvExtraction.ts's guessSkills), not the LLM. Empty/absent for
+  // interactions with no linked Candidate (Client Contacts have no skills
+  // to suggest). Each item: { id, name } — a real Skill row, so approving
+  // one is a direct PUT to /api/people/:id/skills, same as everywhere else
+  // a candidate's skills are set. Never auto-saved without approval.
+  suggestedSkills Json?
 
   model     String
   createdAt DateTime @default(now())

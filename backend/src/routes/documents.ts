@@ -4,6 +4,7 @@ import mammoth from "mammoth";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { storage } from "../storage";
+import { extractTextFromCv } from "../lib/cvExtraction";
 
 export const documentsRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -17,6 +18,24 @@ const DOCUMENT_TYPES = [
   "CONTRACTOR_CORP_DOC",
   "OTHER",
 ] as const;
+
+// Both CV document types get their text extracted at upload time so every
+// version — not just the current one — is full-text searchable; other
+// document types aren't (nothing asked for a "search my Terms of Business
+// PDFs" feature, and extracting every document type would mean silently
+// eating unsupported-format errors far more often).
+const CV_DOCUMENT_TYPES = new Set<string>(["CANDIDATE_CV", "CRUX_FORMATTED_CV"]);
+
+async function extractTextIfCv(type: string, buffer: Buffer, mimeType: string, fileName: string): Promise<string | undefined> {
+  if (!CV_DOCUMENT_TYPES.has(type)) return undefined;
+  try {
+    return await extractTextFromCv(buffer, mimeType, fileName);
+  } catch {
+    // Best-effort: an unsupported/corrupt file just isn't searchable, the
+    // upload itself still succeeds.
+    return undefined;
+  }
+}
 
 const createDocumentSchema = z.object({
   type: z.enum(DOCUMENT_TYPES),
@@ -62,6 +81,7 @@ documentsRouter.post("/", upload.single("file"), async (req, res) => {
 
   const { note, ...documentFields } = parsed.data;
   const stored = await storage.save(req.file.buffer, req.file.originalname);
+  const extractedText = await extractTextIfCv(parsed.data.type, req.file.buffer, req.file.mimetype, req.file.originalname);
 
   const document = await prisma.document.create({
     data: {
@@ -74,6 +94,7 @@ documentsRouter.post("/", upload.single("file"), async (req, res) => {
           mimeType: req.file.mimetype,
           sizeBytes: stored.sizeBytes,
           note,
+          extractedText,
         },
       },
     },
@@ -96,6 +117,7 @@ documentsRouter.post("/:id/versions", upload.single("file"), async (req, res) =>
 
   const stored = await storage.save(req.file.buffer, req.file.originalname);
   const nextVersionNo = Math.max(0, ...document.versions.map((v) => v.versionNo)) + 1;
+  const extractedText = await extractTextIfCv(document.type, req.file.buffer, req.file.mimetype, req.file.originalname);
 
   const version = await prisma.documentVersion.create({
     data: {
@@ -106,6 +128,7 @@ documentsRouter.post("/:id/versions", upload.single("file"), async (req, res) =>
       mimeType: req.file.mimetype,
       sizeBytes: stored.sizeBytes,
       note: req.body.note,
+      extractedText,
     },
   });
 

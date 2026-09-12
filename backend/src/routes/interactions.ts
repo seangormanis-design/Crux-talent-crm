@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { AuthenticatedRequest } from "../middleware/requireAuth";
 import { optionalString } from "../lib/zodHelpers";
 import { extractIntelligence } from "../lib/intelligenceExtraction";
+import { guessSkills } from "../lib/cvExtraction";
 import { reflectOnCall, refreshCallProfileIfDue } from "../lib/callReflection";
 import { fullName } from "../lib/personName";
 import { CLAUDE_MODEL } from "../lib/anthropicClient";
@@ -102,7 +103,7 @@ interactionsRouter.post("/", async (req: AuthenticatedRequest, res) => {
 interactionsRouter.post("/:id/extract-intelligence", async (req, res) => {
   const interaction = await prisma.interaction.findUnique({
     where: { id: req.params.id },
-    include: { person: true, targetContact: true, job: true, company: true },
+    include: { person: { include: { skills: true } }, targetContact: true, job: true, company: true },
   });
   if (!interaction) return res.status(404).json({ error: "Interaction not found" });
   if (!interaction.notes?.trim()) {
@@ -123,10 +124,25 @@ interactionsRouter.post("/:id/extract-intelligence", async (req, res) => {
     return res.status(502).json({ error: err instanceof Error ? err.message : "Extraction failed" });
   }
 
+  // Candidate skills mentioned in the notes but not yet tagged on the
+  // Person — same fuzzy/synonym matching as CV parsing, not the LLM.
+  // Meaningless for a Client Contact/Target Contact (no skills to tag), so
+  // left empty there.
+  let suggestedSkills: { id: string; name: string }[] = [];
+  if (interaction.person?.personType === "CANDIDATE") {
+    const knownSkills = await prisma.skill.findMany();
+    const { confirmed, suggested } = guessSkills(interaction.notes, knownSkills.map((s) => s.name));
+    const matchedNames = new Set([...confirmed, ...suggested]);
+    const existingSkillIds = new Set(interaction.person.skills.map((s) => s.skillId));
+    suggestedSkills = knownSkills
+      .filter((s) => matchedNames.has(s.name) && !existingSkillIds.has(s.id))
+      .map((s) => ({ id: s.id, name: s.name }));
+  }
+
   const intelligence = await prisma.interactionIntelligence.upsert({
     where: { interactionId: interaction.id },
-    update: { ...extracted, model: CLAUDE_MODEL } as any,
-    create: { interactionId: interaction.id, ...extracted, model: CLAUDE_MODEL } as any,
+    update: { ...extracted, suggestedSkills, model: CLAUDE_MODEL } as any,
+    create: { interactionId: interaction.id, ...extracted, suggestedSkills, model: CLAUDE_MODEL } as any,
   });
 
   res.json(intelligence);

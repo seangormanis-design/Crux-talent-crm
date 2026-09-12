@@ -534,7 +534,17 @@ function buildQualificationCallNotes(sections: Record<string, string>): string {
     .join("\n\n");
 }
 
-function IntelligenceSummary({ intelligence }: { intelligence: any }) {
+function IntelligenceSummary({
+  intelligence,
+  personId,
+  existingSkills,
+  onSkillAdded,
+}: {
+  intelligence: any;
+  personId?: string;
+  existingSkills?: { skillId: string; isPrimary: boolean }[];
+  onSkillAdded?: () => void;
+}) {
   const sections = [
     { label: "People mentioned", items: intelligence.peopleMentioned ?? [] },
     { label: "Companies mentioned", items: intelligence.companiesMentioned ?? [] },
@@ -544,8 +554,9 @@ function IntelligenceSummary({ intelligence }: { intelligence: any }) {
   ].filter((s) => s.items.length > 0);
 
   const suggestedOpportunities: { companyName: string; signal: string }[] = intelligence.suggestedOpportunities ?? [];
+  const suggestedSkills: { id: string; name: string }[] = intelligence.suggestedSkills ?? [];
 
-  if (!sections.length && !suggestedOpportunities.length) {
+  if (!sections.length && !suggestedOpportunities.length && !suggestedSkills.length) {
     return (
       <p className="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-400">
         Nothing extracted — the notes didn't contain anything for these categories.
@@ -575,6 +586,71 @@ function IntelligenceSummary({ intelligence }: { intelligence: any }) {
           </div>
         </div>
       )}
+      {!!suggestedSkills.length && personId && (
+        <div>
+          <p className="font-medium text-slate-600">Suggested skills</p>
+          <div className="ml-3 space-y-1">
+            {suggestedSkills.map((s) => (
+              <SuggestedSkillRow
+                key={s.id}
+                skill={s}
+                personId={personId}
+                existingSkills={existingSkills ?? []}
+                onAdded={onSkillAdded ?? (() => {})}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// A candidate skill mentioned in the call notes but not yet tagged, found
+// with the same fuzzy/synonym matching CV parsing uses (guessSkills) —
+// never saved without approval, same principle as every other Extract
+// Intelligence suggestion. "Add" appends it via the real skill-assignment
+// endpoint (PUT .../skills, the same one SkillPicker uses), not a shortcut.
+function SuggestedSkillRow({
+  skill,
+  personId,
+  existingSkills,
+  onAdded,
+}: {
+  skill: { id: string; name: string };
+  personId: string;
+  existingSkills: { skillId: string; isPrimary: boolean }[];
+  onAdded: () => void;
+}) {
+  const [status, setStatus] = useState<"pending" | "adding" | "dismissed" | "added">("pending");
+
+  if (status === "dismissed") return null;
+  if (status === "added") return <p className="text-green-700">✓ Added {skill.name}</p>;
+
+  async function add() {
+    setStatus("adding");
+    try {
+      await api.put(`/api/people/${personId}/skills`, {
+        skills: [...existingSkills, { skillId: skill.id, isPrimary: false }],
+      });
+      setStatus("added");
+      onAdded();
+    } catch {
+      setStatus("pending");
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between rounded border bg-white px-2 py-1">
+      <span className="text-slate-600">{skill.name}</span>
+      <div className="flex gap-3">
+        <button type="button" disabled={status === "adding"} onClick={add} className="text-blue-600 hover:underline disabled:opacity-50">
+          {status === "adding" ? "Adding..." : "Add"}
+        </button>
+        <button type="button" onClick={() => setStatus("dismissed")} className="text-slate-400 hover:underline">
+          Dismiss
+        </button>
+      </div>
     </div>
   );
 }
@@ -1083,7 +1159,14 @@ export function PersonDetail() {
               )}
               {i.notes?.trim() && (
                 <div>
-                  {i.intelligence && <IntelligenceSummary intelligence={i.intelligence} />}
+                  {i.intelligence && (
+                    <IntelligenceSummary
+                      intelligence={i.intelligence}
+                      personId={person.id}
+                      existingSkills={(person.skills ?? []).map((s: any) => ({ skillId: s.skill.id, isPrimary: s.isPrimary }))}
+                      onSkillAdded={load}
+                    />
+                  )}
                   <button
                     type="button"
                     disabled={extractingId === i.id}

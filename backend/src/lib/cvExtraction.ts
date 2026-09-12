@@ -123,7 +123,9 @@ function tokenFuzzyPresent(token: string, textTokens: string[]): boolean {
   return textTokens.some((t) => Math.abs(t.length - token.length) <= maxDist && levenshtein(token, t) <= maxDist);
 }
 
-function guessSkills(text: string, knownSkillNames: string[]): { confirmed: string[]; suggested: string[] } {
+// Exported for reuse against non-CV text (Extract Intelligence suggests
+// candidate skills mentioned in call notes using this exact matching).
+export function guessSkills(text: string, knownSkillNames: string[]): { confirmed: string[]; suggested: string[] } {
   const compactText = normalizeCompact(text);
   const textTokens = tokenize(text);
 
