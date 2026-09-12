@@ -21,6 +21,11 @@ A genuinely different *mode* of creation isn't a violation on its own as long as
 - **`CvDropCreatePanel`** (dashboard drag-a-CV-to-create-a-candidate widget) — captures a genuinely different data set than `PersonCreateForm`, not a subset of it (e.g. it fills `currentTitle`, which `PersonCreateForm` doesn't even expose, while skipping personal email/LinkedIn/address, which a CV parse can't reliably provide). This is a different creation mode, not a shortcut standing in for the real form.
 - **CSV import** (`Import.tsx` / `backend/src/routes/import.ts`) — a bulk operation with no sensible per-row form equivalent; there's no way for it to "open the form" once per imported row.
 
+**Confirmed entry points (not exceptions — same master form, just pre-filled context):**
+
+- `PersonCreateForm`: the People page's "Add new Candidate"/"Add new Client Contact" buttons, and the Company detail page's "+ Add contact" (Contacts tab), both opening the identical form with `initialCompany` pre-filled where relevant.
+- `JobCreateForm`: the Jobs page's "New job" button, and the Company detail page's "+ Add Job" (a prominent button in the header area, which switches to the Jobs tab and opens the same form pre-filled via `initialCompanyId`) and "+ Add job" (the Jobs tab's own toggle for the same form). Any future "add a job from here" entry point should follow this same pattern — open `JobCreateForm` with context pre-filled, not a new form.
+
 ### Linked Company must always be visible
 
 Any record with a linked Company (Candidate's current employer, Client Contact's employer, or similar future relationships) must display that company clearly in the main details area, as a clickable hyperlink to the Company's record page — not buried, omitted, or shown as plain unlinked text.

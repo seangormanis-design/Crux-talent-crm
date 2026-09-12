@@ -247,9 +247,20 @@ export function CompanyDetail() {
             {company.companyType?.replaceAll("_", " ")} · {company.relationshipStatus.replaceAll("_", " ")}
           </p>
         </div>
-        <button onClick={onToggleArchive} className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100">
-          {company.archivedAt ? "Unarchive" : "Archive"}
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button
+            onClick={() => {
+              setActiveTab("Jobs");
+              setShowAddJob(true);
+            }}
+            className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800"
+          >
+            + Add Job
+          </button>
+          <button onClick={onToggleArchive} className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100">
+            {company.archivedAt ? "Unarchive" : "Archive"}
+          </button>
+        </div>
       </div>
 
       <div className="border-b">
