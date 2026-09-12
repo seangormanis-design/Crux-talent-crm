@@ -131,14 +131,14 @@ model Opportunity {
 }
 
 // A lightweight prospecting contact attached to an Opportunity before a real
-// Client Contact exists — fast to add (name, optional job title/LinkedIn),
-// and interactions can be logged against one exactly as against a real
-// Person (see Interaction.targetContactId). Converted into a real Person
-// (personType CLIENT_CONTACT) automatically once the Opportunity reaches
-// Meeting Booked; convertedPersonId marks that this has happened and
-// prevents re-conversion. A Target Contact that's never converted (e.g. one
-// of several who didn't reply) simply stays part of the Opportunity's
-// history — nothing forces it to become a full record.
+// Client Contact exists — fast to add (name, plus optional job title/email/
+// phone/LinkedIn, none forced), and interactions can be logged against one
+// exactly as against a real Person (see Interaction.targetContactId).
+// Converted into a real Person (personType CLIENT_CONTACT) automatically
+// once the Opportunity reaches Meeting Booked; convertedPersonId marks that
+// this has happened and prevents re-conversion. A Target Contact that's
+// never converted (e.g. one of several who didn't reply) simply stays part
+// of the Opportunity's history — nothing forces it to become a full record.
 model TargetContact {
   id            String      @id @default(uuid())
   opportunityId String
@@ -146,6 +146,8 @@ model TargetContact {
 
   name        String
   jobTitle    String?
+  email       String?
+  phone       String?
   linkedinUrl String?
 
   convertedPersonId String? @unique

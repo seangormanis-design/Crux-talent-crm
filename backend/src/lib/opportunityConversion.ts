@@ -45,6 +45,8 @@ export async function convertOpportunityToRealRecords(
         surname,
         companyId,
         jobTitle: tc.jobTitle,
+        workEmail: tc.email,
+        phone: tc.phone,
         linkedinUrl: tc.linkedinUrl,
       },
     });

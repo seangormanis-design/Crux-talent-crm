@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { optionalString, optionalUrl } from "../lib/zodHelpers";
+import { optionalEmail, optionalString, optionalUrl } from "../lib/zodHelpers";
 
 export const targetContactsRouter = Router();
 
@@ -9,6 +9,8 @@ const targetContactSchema = z.object({
   opportunityId: z.string().uuid(),
   name: z.string().min(1),
   jobTitle: optionalString,
+  email: optionalEmail,
+  phone: optionalString,
   linkedinUrl: optionalUrl,
 });
 
@@ -23,6 +25,8 @@ targetContactsRouter.post("/", async (req, res) => {
 const editSchema = z.object({
   name: z.string().min(1).optional(),
   jobTitle: optionalString,
+  email: optionalEmail,
+  phone: optionalString,
   linkedinUrl: optionalUrl,
 });
 

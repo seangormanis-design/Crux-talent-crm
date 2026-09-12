@@ -20,6 +20,8 @@ interface TargetContact {
   id: string;
   name: string;
   jobTitle?: string | null;
+  email?: string | null;
+  phone?: string | null;
   linkedinUrl?: string | null;
   convertedPersonId?: string | null;
   convertedPerson?: { id: string; firstName: string; surname?: string | null } | null;
@@ -159,6 +161,8 @@ function TargetContactsPanel({
 }) {
   const [name, setName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
 
   async function addContact(e: FormEvent) {
@@ -167,10 +171,14 @@ function TargetContactsPanel({
       opportunityId: opportunity.id,
       name,
       jobTitle: jobTitle || undefined,
+      email: email || undefined,
+      phone: phone || undefined,
       linkedinUrl: linkedinUrl || undefined,
     });
     setName("");
     setJobTitle("");
+    setEmail("");
+    setPhone("");
     setLinkedinUrl("");
     setShowAddContact(false);
     onChange();
@@ -214,6 +222,20 @@ function TargetContactsPanel({
             placeholder="Job title (optional)"
             value={jobTitle}
             onChange={(e) => setJobTitle(e.target.value)}
+          />
+          <input
+            type="email"
+            className="w-full rounded border px-2 py-1.5 text-sm"
+            placeholder="Email (optional)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input
+            type="tel"
+            className="w-full rounded border px-2 py-1.5 text-sm"
+            placeholder="Phone (optional)"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
           />
           <input
             className="w-full rounded border px-2 py-1.5 text-sm"
@@ -270,6 +292,16 @@ function TargetContactRow({
             )}
           </p>
           <div className="flex flex-wrap gap-2 text-xs">
+            {contact.email && (
+              <a href={`mailto:${contact.email}`} className="text-slate-500 hover:underline">
+                {contact.email}
+              </a>
+            )}
+            {contact.phone && (
+              <a href={`tel:${contact.phone}`} className="text-slate-500 hover:underline">
+                {contact.phone}
+              </a>
+            )}
             {contact.linkedinUrl && (
               <a href={contact.linkedinUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
                 LinkedIn ↗
