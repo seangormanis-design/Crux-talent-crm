@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
@@ -57,6 +57,22 @@ const INTERVIEW_FORMAT_LABELS: Record<string, string> = {
   VIDEO: "Video/Teams",
   FACE_TO_FACE: "Face to Face",
 };
+
+function ordinal(n: number): string {
+  const suffixes = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${suffixes[(v - 20) % 10] ?? suffixes[v] ?? suffixes[0]}`;
+}
+
+// Compact "10 Sep, 11:00" style — distinct from the app's usual DD/MM/YYYY,
+// used specifically for describing an interview's own scheduled slot within
+// the Pipeline Activity log.
+function formatShortDateTime(iso: string): string {
+  const date = new Date(iso);
+  const day = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `${day}, ${time}`;
+}
 
 export function JobsList() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -143,6 +159,7 @@ export function JobDetail() {
   const [placementError, setPlacementError] = useState<string | null>(null);
   const [suggestedCandidates, setSuggestedCandidates] = useState<any[]>([]);
   const [schedulingFor, setSchedulingFor] = useState<string | null>(null);
+  const [pipelineView, setPipelineView] = useState<"board" | "activity">("board");
   const [interviewDate, setInterviewDate] = useState("");
   const [interviewTime, setInterviewTime] = useState("");
   const [interviewFormat, setInterviewFormat] = useState("VIDEO");
@@ -231,6 +248,40 @@ export function JobDetail() {
     }
   }
 
+  // Combined, chronological log of every candidate's stage changes and
+  // scheduled interviews across this job's whole pipeline — pulled straight
+  // from the per-candidate data already loaded with the job, not a separate
+  // fetch. Sorted by when each thing actually happened/was logged
+  // (createdAt), not — for interviews — the future date they're scheduled
+  // for (that's what the dashboard's "Upcoming interviews" feed is for).
+  const pipelineActivity = useMemo(() => {
+    const entries: { id: string; at: string; candidate: any; description: string }[] = [];
+    for (const jc of job?.candidates ?? []) {
+      for (const sc of jc.stageChanges ?? []) {
+        entries.push({
+          id: `sc-${sc.id}`,
+          at: sc.createdAt,
+          candidate: jc.candidate,
+          description: sc.fromStage
+            ? `Moved to ${PIPELINE_STAGE_LABELS[sc.toStage] ?? sc.toStage}`
+            : `Added to pipeline — ${PIPELINE_STAGE_LABELS[sc.toStage] ?? sc.toStage}`,
+        });
+      }
+      const sortedInterviews = [...(jc.interviews ?? [])].sort(
+        (a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+      );
+      sortedInterviews.forEach((iv: any, idx: number) => {
+        entries.push({
+          id: `iv-${iv.id}`,
+          at: iv.createdAt,
+          candidate: jc.candidate,
+          description: `Interview scheduled — ${ordinal(idx + 1)} Interview, ${formatShortDateTime(iv.scheduledAt)}`,
+        });
+      });
+    }
+    return entries.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  }, [job]);
+
   if (!job) return <p>Loading...</p>;
 
   // "Winner" pool: whoever's reached Offered (or already flagged Placed) in
@@ -261,7 +312,30 @@ export function JobDetail() {
 
       <section>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-medium">Candidate pipeline</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="font-medium">Candidate pipeline</h2>
+            <nav className="flex gap-1 rounded border bg-slate-100 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setPipelineView("board")}
+                className={`rounded px-2 py-1 font-medium ${
+                  pipelineView === "board" ? "bg-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Kanban board
+              </button>
+              <button
+                type="button"
+                onClick={() => setPipelineView("activity")}
+                className={`rounded px-2 py-1 font-medium ${
+                  pipelineView === "activity" ? "bg-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Pipeline Activity
+              </button>
+            </nav>
+          </div>
+          {pipelineView === "board" && (
           <form onSubmit={addCandidate} className="flex gap-2">
             <select
               className="rounded border px-2 py-1.5 text-sm"
@@ -278,7 +352,9 @@ export function JobDetail() {
             </select>
             <button className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white">Add to pipeline</button>
           </form>
+          )}
         </div>
+        {pipelineView === "board" && (
         <div className="flex gap-3 overflow-x-auto">
           {PIPELINE_STAGES.map((stage) => {
             const inStage = (job.candidates ?? []).filter((jc: any) => jc.stage === stage);
@@ -393,6 +469,43 @@ export function JobDetail() {
             );
           })}
         </div>
+        )}
+
+        {pipelineView === "activity" && (
+          <div className="overflow-hidden rounded border bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100 text-left">
+                <tr>
+                  <th className="px-3 py-2">Date/time</th>
+                  <th className="px-3 py-2">Candidate</th>
+                  <th className="px-3 py-2">What happened</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pipelineActivity.map((entry) => (
+                  <tr key={entry.id} className="border-t">
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">
+                      {new Date(entry.at).toLocaleString()}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <Link to={`/people/${entry.candidate.id}`} className={personLinkClass(entry.candidate)}>
+                        {fullName(entry.candidate)}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2">{entry.description}</td>
+                  </tr>
+                ))}
+                {!pipelineActivity.length && (
+                  <tr>
+                    <td colSpan={3} className="px-3 py-6 text-center text-slate-400">
+                      No pipeline activity yet
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
