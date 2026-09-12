@@ -37,3 +37,19 @@ This applies automatically to any future record type that gains a Company link �
 Candidates = green, Companies = blue, Client Contacts = orange, applied via named theme variables (`--color-candidate`, `--color-company`, `--color-client-contact`, defined in `frontend/src/index.css`, with `-bg`/`-border` tints of each for subtle badges/left-borders). Any new UI element displaying or referencing these record types (lists, badges, cards, links, icons) must use this colour scheme by default, not an arbitrary or default colour.
 
 Keep it subtle — a coloured left-border, small dot, or tinted badge, not solid colour blocks. Use `frontend/src/lib/recordColors.ts` (the Tailwind arbitrary-value classes mapped from the variables) plus the `RecordTypeDot`/`RecordTypeBadge` components rather than hand-rolling new colour logic per file.
+
+### Records are archived, not hard-deleted
+
+Core business records — Company, Person (Candidate/Client Contact), Job — are never permanently deleted. A "delete" action archives instead (`archivedAt`, hidden from default views but fully reversible); GDPR erasure requests go through the separate anonymize flow (`deletedAt` plus scrubbed personal fields), which still preserves interaction/pipeline history so it stays queryable.
+
+Hard `DELETE` calls are reserved for genuinely disposable rows with no standalone history of their own — tag links, skill assignments, a single interview record. Any new entity that represents a first-class business record should follow the archive convention rather than introducing a new hard-delete path.
+
+### Large record-set pickers search server-side
+
+Any picker for choosing one record out of a potentially large set (Companies, Candidates, Client Contacts, etc.) must search server-side via a `q` query parameter (see `GET /api/companies`, `GET /api/people`) rather than loading the full table into the browser and filtering client-side.
+
+Follow the established debounced-search-dropdown pattern (`CompanyPicker.tsx`, `CandidatePipelinePicker.tsx`, `LinkPersonModal.tsx`): a text input, a short debounce (~200-250ms) before calling the search endpoint, and a dropdown of results — nothing loads until the user types.
+
+### Job stage vs Candidate pipeline stage
+
+`Job.stage` (`JobStage` enum) and `JobCandidate.stage` (`CandidateStage` enum) are two separate concepts that happen to share some value names (`OFFERED`, `PLACED`, `REJECTED`): the former is the job's own overall recruitment-process stage, the latter is one candidate's position in that job's pipeline. Changing one never changes the other — don't conflate them when building new stage-aware features (filters, dashboards, automations).
