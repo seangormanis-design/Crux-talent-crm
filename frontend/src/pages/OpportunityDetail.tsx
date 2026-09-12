@@ -284,6 +284,38 @@ function TargetContactRow({
   const [logging, setLogging] = useState(false);
   const [type, setType] = useState("PHONE_CALL");
   const [notes, setNotes] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(contact.name);
+  const [editJobTitle, setEditJobTitle] = useState(contact.jobTitle ?? "");
+  const [editEmail, setEditEmail] = useState(contact.email ?? "");
+  const [editPhone, setEditPhone] = useState(contact.phone ?? "");
+  const [editLinkedinUrl, setEditLinkedinUrl] = useState(contact.linkedinUrl ?? "");
+
+  // Editable up until conversion — once this Target Contact has become a
+  // real Client Contact, further edits belong on that Person record instead.
+  const canEdit = !contact.convertedPersonId;
+
+  function startEditing() {
+    setEditName(contact.name);
+    setEditJobTitle(contact.jobTitle ?? "");
+    setEditEmail(contact.email ?? "");
+    setEditPhone(contact.phone ?? "");
+    setEditLinkedinUrl(contact.linkedinUrl ?? "");
+    setEditing(true);
+  }
+
+  async function saveEdit(e: FormEvent) {
+    e.preventDefault();
+    await api.patch(`/api/target-contacts/${contact.id}`, {
+      name: editName,
+      jobTitle: editJobTitle || undefined,
+      email: editEmail || undefined,
+      phone: editPhone || undefined,
+      linkedinUrl: editLinkedinUrl || undefined,
+    });
+    setEditing(false);
+    onChange();
+  }
 
   async function logActivity(e: FormEvent) {
     e.preventDefault();
@@ -293,13 +325,85 @@ function TargetContactRow({
     onChange();
   }
 
+  if (editing) {
+    return (
+      <form
+        onSubmit={saveEdit}
+        className={`w-full rounded border p-3 ${!contact.convertedPersonId ? "border-dashed border-slate-300" : ""}`}
+      >
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+          <input
+            className="rounded border px-2 py-1.5 text-sm sm:col-span-2"
+            placeholder="Name"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            required
+            autoFocus
+          />
+          <input
+            className="rounded border px-2 py-1.5 text-sm"
+            placeholder="Job title (optional)"
+            value={editJobTitle}
+            onChange={(e) => setEditJobTitle(e.target.value)}
+          />
+          <input
+            type="email"
+            className="rounded border px-2 py-1.5 text-sm"
+            placeholder="Email (optional)"
+            value={editEmail}
+            onChange={(e) => setEditEmail(e.target.value)}
+          />
+          <input
+            type="tel"
+            className="rounded border px-2 py-1.5 text-sm"
+            placeholder="Phone (optional)"
+            value={editPhone}
+            onChange={(e) => setEditPhone(e.target.value)}
+          />
+          <input
+            className="rounded border px-2 py-1.5 text-sm sm:col-span-4"
+            placeholder="LinkedIn URL (optional)"
+            value={editLinkedinUrl}
+            onChange={(e) => setEditLinkedinUrl(e.target.value)}
+          />
+          <div className="flex gap-2 sm:col-span-1">
+            <button type="submit" className="rounded bg-slate-900 px-3 py-1.5 text-xs text-white">
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="rounded border px-3 py-1.5 text-xs hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </form>
+    );
+  }
+
   return (
     <div className={`w-full rounded border p-3 ${!contact.convertedPersonId ? "border-dashed border-slate-300" : ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-1.5">
           <p className="text-base font-medium">
-            {contact.name}
-            {contact.jobTitle && <span className="ml-1 font-normal text-slate-500">— {contact.jobTitle}</span>}
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={startEditing}
+                className="-ml-1 rounded px-1 text-left hover:bg-slate-100"
+                title="Click to edit"
+              >
+                {contact.name}
+                {contact.jobTitle && <span className="ml-1 font-normal text-slate-500">— {contact.jobTitle}</span>}
+              </button>
+            ) : (
+              <>
+                {contact.name}
+                {contact.jobTitle && <span className="ml-1 font-normal text-slate-500">— {contact.jobTitle}</span>}
+              </>
+            )}
             {!contact.convertedPersonId && (
               <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-normal uppercase text-slate-500">
                 Prospect
@@ -343,10 +447,15 @@ function TargetContactRow({
             )}
           </div>
         </div>
-        {!contact.convertedPersonId && (
-          <button type="button" onClick={onRemove} className="shrink-0 text-slate-400 hover:text-red-600" title="Remove">
-            ×
-          </button>
+        {canEdit && (
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="button" onClick={startEditing} className="text-xs text-blue-600 hover:underline">
+              Edit
+            </button>
+            <button type="button" onClick={onRemove} className="text-slate-400 hover:text-red-600" title="Remove">
+              ×
+            </button>
+          </div>
         )}
       </div>
 
