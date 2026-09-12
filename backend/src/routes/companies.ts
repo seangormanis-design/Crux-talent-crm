@@ -39,10 +39,47 @@ companiesRouter.get("/", async (req, res) => {
         companyType ? { companyType: companyType as any } : {},
       ],
     },
+    // Only the latest interaction per branch is needed to compute
+    // "date of last action" below — not the full history, which the detail
+    // page's own aggregated timeline already covers.
+    include: {
+      interactions: { orderBy: { occurredAt: "desc" }, take: 1, select: { occurredAt: true } },
+      contacts: {
+        where: { deletedAt: null },
+        select: { interactions: { orderBy: { occurredAt: "desc" }, take: 1, select: { occurredAt: true } } },
+      },
+      employeesAt: {
+        where: { personType: "CANDIDATE", deletedAt: null },
+        select: { interactions: { orderBy: { occurredAt: "desc" }, take: 1, select: { occurredAt: true } } },
+      },
+      opportunities: {
+        select: {
+          targetContacts: {
+            select: { interactions: { orderBy: { occurredAt: "desc" }, take: 1, select: { occurredAt: true } } },
+          },
+        },
+      },
+    },
     orderBy: { name: "asc" },
   });
 
-  res.json(companies);
+  // "Date of last action" — the most recent interaction across anyone linked
+  // to this company (Client Contacts, Candidates working here, and
+  // lightweight BD Target Contacts), the same aggregated data the Company
+  // detail page's own activity timeline is built from.
+  const shaped = companies.map((c) => {
+    const dates: Date[] = [];
+    for (const i of c.interactions) dates.push(i.occurredAt);
+    for (const p of c.contacts) for (const i of p.interactions) dates.push(i.occurredAt);
+    for (const p of c.employeesAt) for (const i of p.interactions) dates.push(i.occurredAt);
+    for (const o of c.opportunities) for (const tc of o.targetContacts) for (const i of tc.interactions) dates.push(i.occurredAt);
+    const lastActionAt = dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : null;
+
+    const { interactions, contacts, employeesAt, opportunities, ...rest } = c;
+    return { ...rest, lastActionAt };
+  });
+
+  res.json(shaped);
 });
 
 companiesRouter.get("/:id", async (req, res) => {
@@ -81,7 +118,10 @@ companiesRouter.get("/:id", async (req, res) => {
       opportunities: {
         include: {
           scheduledEvents: { include: { contact: true }, orderBy: { scheduledAt: "asc" } },
-          targetContacts: true,
+          // Interactions included so the company-wide activity timeline
+          // below can fold in lightweight Target Contact activity, not just
+          // real Contacts/Candidates.
+          targetContacts: { include: { interactions: { orderBy: { occurredAt: "desc" } } } },
         },
         orderBy: { updatedAt: "desc" },
       },

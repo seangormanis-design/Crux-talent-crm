@@ -12,6 +12,7 @@ import ScheduledEventsPanel from "../components/ScheduledEventsPanel";
 import RecordTypeDot from "../components/RecordTypeDot";
 import { fullName } from "../lib/personName";
 import { ordinal } from "../lib/ordinal";
+import { daysSince, STALE_DAYS } from "../lib/staleness";
 import { JOB_LINK_CLASS, RECORD_KIND_BORDER_CLASS, RECORD_KIND_TEXT_CLASS, personLinkClass } from "../lib/recordColors";
 
 interface Job {
@@ -19,7 +20,7 @@ interface Job {
   title: string;
   stage: string;
   qualityRating: string;
-  company: { name: string };
+  company: { id: string; name: string };
   archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -30,15 +31,6 @@ interface Job {
 // sourcing progress is visible without opening the job — the specific
 // subset the recruiter scans for at a glance, not every possible stage.
 const JOBS_LIST_PIPELINE_STAGES = ["CV_SENT", "FIRST_INTERVIEW", "FURTHER_INTERVIEWS"];
-
-// Same "no movement in 14+ days" threshold the Dashboard's stale-jobs feed
-// already uses — one definition of "stale" for the whole app.
-const STALE_JOB_DAYS = 14;
-
-function daysSince(iso: string): number {
-  const ms = Date.now() - new Date(iso).getTime();
-  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
-}
 
 // A/B/C only — the recruiter's own judgement of how likely this job is to
 // close, never calculated. Required at creation so nothing goes unrated.
@@ -108,10 +100,13 @@ export function JobsList() {
   // attention — Placed/Rejected jobs are done and would just be clutter.
   const [includeClosed, setIncludeClosed] = useState(false);
   const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
-  // Off by default (server order = most recently touched first); toggling
-  // this re-sorts client-side to surface the most neglected jobs instead —
-  // the "days since last update" column is the whole point of that view.
-  const [staleFirst, setStaleFirst] = useState(false);
+  // Column-header sort — same clickable-header/arrow-indicator pattern the
+  // People list already uses. Starts matching the server's own default
+  // order (most recently touched first) so the initial view is unchanged.
+  const [sortKey, setSortKey] = useState<"title" | "company" | "stage" | "qualityRating" | "createdAt" | "updatedAt">(
+    "updatedAt"
+  );
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   function load(opts: {
     archived?: boolean;
@@ -145,9 +140,46 @@ export function JobsList() {
   }, []);
 
   const displayedJobs = useMemo(() => {
-    if (!staleFirst) return jobs;
-    return [...jobs].sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
-  }, [jobs, staleFirst]);
+    const arr = [...jobs];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "title":
+          cmp = a.title.localeCompare(b.title);
+          break;
+        case "company":
+          cmp = (a.company?.name ?? "").localeCompare(b.company?.name ?? "");
+          break;
+        case "stage":
+          cmp = a.stage.localeCompare(b.stage);
+          break;
+        case "qualityRating":
+          cmp = a.qualityRating.localeCompare(b.qualityRating);
+          break;
+        case "createdAt":
+          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+        case "updatedAt":
+          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [jobs, sortKey, sortDir]);
+
+  function toggleSort(key: typeof sortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  function sortIndicator(key: typeof sortKey) {
+    if (sortKey !== key) return null;
+    return <span className="ml-1 text-slate-400">{sortDir === "asc" ? "▲" : "▼"}</span>;
+  }
 
   function toggleRating(rating: string) {
     setRatingFilter((prev) => {
@@ -187,38 +219,6 @@ export function JobsList() {
             load({ query: e.target.value });
           }}
         />
-
-        <select
-          className="rounded border px-2 py-2 text-sm"
-          value={companyId}
-          onChange={(e) => {
-            setCompanyId(e.target.value);
-            load({ company: e.target.value });
-          }}
-        >
-          <option value="">All companies</option>
-          {companyOptions.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="rounded border px-2 py-2 text-sm"
-          value={stageFilter}
-          onChange={(e) => {
-            setStageFilter(e.target.value);
-            load({ stage: e.target.value });
-          }}
-        >
-          <option value="">All stages</option>
-          {STAGES.map((s) => (
-            <option key={s} value={s}>
-              {s.replaceAll("_", " ")}
-            </option>
-          ))}
-        </select>
 
         <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">
           <input
@@ -279,20 +279,85 @@ export function JobsList() {
         <table className="w-full text-sm">
           <thead className="bg-slate-100 text-left">
             <tr>
-              <th className="px-3 py-2">Title</th>
-              <th className="px-3 py-2">Company</th>
-              <th className="px-3 py-2">Stage</th>
-              <th className="px-3 py-2">Rating</th>
-              <th className="px-3 py-2">Pipeline</th>
-              <th className="px-3 py-2">Created</th>
+              <th className="px-3 py-2">
+                <button type="button" onClick={() => toggleSort("title")} className="flex items-center gap-1 font-medium hover:underline">
+                  Title{sortIndicator("title")}
+                </button>
+              </th>
               <th className="px-3 py-2">
                 <button
                   type="button"
-                  onClick={() => setStaleFirst((s) => !s)}
-                  className="flex items-center gap-1 font-medium hover:underline"
-                  title="Sort by most neglected first"
+                  onClick={() => toggleSort("company")}
+                  className="mb-1 flex items-center gap-1 font-medium hover:underline"
                 >
-                  Last updated {staleFirst ? "▲" : "▼"}
+                  Company{sortIndicator("company")}
+                </button>
+                <select
+                  className="w-full rounded border px-1 py-0.5 text-xs font-normal"
+                  value={companyId}
+                  onChange={(e) => {
+                    setCompanyId(e.target.value);
+                    load({ company: e.target.value });
+                  }}
+                >
+                  <option value="">All companies</option>
+                  {companyOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </th>
+              <th className="px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSort("stage")}
+                  className="mb-1 flex items-center gap-1 font-medium hover:underline"
+                >
+                  Stage{sortIndicator("stage")}
+                </button>
+                <select
+                  className="w-full rounded border px-1 py-0.5 text-xs font-normal"
+                  value={stageFilter}
+                  onChange={(e) => {
+                    setStageFilter(e.target.value);
+                    load({ stage: e.target.value });
+                  }}
+                >
+                  <option value="">All stages</option>
+                  {STAGES.map((s) => (
+                    <option key={s} value={s}>
+                      {s.replaceAll("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              </th>
+              <th className="px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSort("qualityRating")}
+                  className="flex items-center gap-1 font-medium hover:underline"
+                >
+                  Rating{sortIndicator("qualityRating")}
+                </button>
+              </th>
+              <th className="px-3 py-2">Pipeline</th>
+              <th className="px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSort("createdAt")}
+                  className="flex items-center gap-1 font-medium hover:underline"
+                >
+                  Created{sortIndicator("createdAt")}
+                </button>
+              </th>
+              <th className="px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSort("updatedAt")}
+                  className="flex items-center gap-1 font-medium hover:underline"
+                >
+                  Last updated{sortIndicator("updatedAt")}
                 </button>
               </th>
             </tr>
@@ -300,7 +365,7 @@ export function JobsList() {
           <tbody>
             {displayedJobs.map((j) => {
               const daysSinceUpdate = daysSince(j.updatedAt);
-              const isStale = daysSinceUpdate >= STALE_JOB_DAYS;
+              const isStale = daysSinceUpdate >= STALE_DAYS;
               return (
                 <tr
                   key={j.id}

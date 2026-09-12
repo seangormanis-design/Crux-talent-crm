@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import InlineField from "../components/InlineField";
+import InlineSelect from "../components/InlineSelect";
+import { daysSince, STALE_DAYS } from "../lib/staleness";
 import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import PersonCreateForm from "../components/PersonCreateForm";
@@ -34,24 +36,86 @@ interface Company {
   relationshipStatus: string;
   notes?: string;
   archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Most recent interaction across everyone linked to this company (Client
+  // Contacts, Candidates working here, lightweight BD Target Contacts) —
+  // computed server-side from the same aggregated data the Company detail
+  // page's own activity timeline is built from.
+  lastActionAt?: string | null;
 }
+
+const COMPANY_TYPE_OPTIONS = [
+  { value: "PARTNER", label: "Partner" },
+  { value: "ISV", label: "ISV" },
+  { value: "CONSULTANCY", label: "Consultancy" },
+  { value: "END_USER", label: "End User" },
+];
+
+const RELATIONSHIP_STATUS_OPTIONS = [
+  { value: "PROSPECT", label: "Prospect" },
+  { value: "ACTIVE_CLIENT", label: "Active Client" },
+  { value: "DORMANT", label: "Dormant" },
+  { value: "DO_NOT_CONTACT", label: "Do Not Contact" },
+];
 
 export function CompaniesList() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [q, setQ] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const navigate = useNavigate();
+  // Defaults match the server's own default order (name A-Z), so the
+  // initial view is unchanged until the user picks a sort.
+  const [sortKey, setSortKey] = useState<"name" | "updatedAt">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  function load(query = q, archived = showArchived) {
+  function load(opts: { query?: string; archived?: boolean; type?: string; status?: string } = {}) {
+    const query = opts.query ?? q;
+    const archived = opts.archived ?? showArchived;
+    const type = opts.type ?? typeFilter;
+    const status = opts.status ?? statusFilter;
+
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (archived) params.set("includeArchived", "true");
+    if (type) params.set("companyType", type);
+    if (status) params.set("relationshipStatus", status);
     api.get<Company[]>(`/api/companies?${params.toString()}`).then(setCompanies);
   }
 
   useEffect(() => load(), []);
+
+  const sortedCompanies = useMemo(() => {
+    const arr = [...companies];
+    arr.sort((a, b) => {
+      const cmp =
+        sortKey === "name" ? a.name.localeCompare(b.name) : new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [companies, sortKey, sortDir]);
+
+  function toggleSort(key: "name" | "updatedAt") {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  function sortIndicator(key: "name" | "updatedAt") {
+    if (sortKey !== key) return null;
+    return <span className="ml-1 text-slate-400">{sortDir === "asc" ? "▲" : "▼"}</span>;
+  }
+
+  async function saveCompanyType(id: string, value: string) {
+    await api.patch(`/api/companies/${id}`, { companyType: value });
+    load();
+  }
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -91,23 +155,56 @@ export function CompaniesList() {
         </form>
       )}
 
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <input
           className="w-full max-w-sm rounded border px-3 py-2 text-sm"
           placeholder="Search companies..."
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
-            load(e.target.value, showArchived);
+            load({ query: e.target.value });
           }}
         />
+
+        <select
+          className="rounded border px-2 py-2 text-sm"
+          value={typeFilter}
+          onChange={(e) => {
+            setTypeFilter(e.target.value);
+            load({ type: e.target.value });
+          }}
+        >
+          <option value="">All types</option>
+          {COMPANY_TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="rounded border px-2 py-2 text-sm"
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            load({ status: e.target.value });
+          }}
+        >
+          <option value="">All statuses</option>
+          {RELATIONSHIP_STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+
         <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-600">
           <input
             type="checkbox"
             checked={showArchived}
             onChange={(e) => {
               setShowArchived(e.target.checked);
-              load(q, e.target.checked);
+              load({ archived: e.target.checked });
             }}
           />
           Show archived
@@ -118,29 +215,60 @@ export function CompaniesList() {
         <table className="w-full text-sm">
           <thead className="bg-slate-100 text-left">
             <tr>
-              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">
+                <button type="button" onClick={() => toggleSort("name")} className="flex items-center gap-1 font-medium hover:underline">
+                  Name{sortIndicator("name")}
+                </button>
+              </th>
               <th className="px-3 py-2">Type</th>
               <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Date of last action</th>
+              <th className="px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSort("updatedAt")}
+                  className="flex items-center gap-1 font-medium hover:underline"
+                >
+                  Days since last update{sortIndicator("updatedAt")}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {companies.map((c) => (
-              <tr
-                key={c.id}
-                className={`border-t border-l-4 ${RECORD_KIND_BORDER_CLASS.COMPANY} ${c.archivedAt ? "opacity-50" : ""}`}
-              >
-                <td className="px-3 py-2">
-                  <Link to={`/companies/${c.id}`} className={COMPANY_LINK_CLASS}>
-                    {c.name}
-                  </Link>
-                  {c.archivedAt && (
-                    <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Archived</span>
-                  )}
-                </td>
-                <td className="px-3 py-2">{c.companyType?.replaceAll("_", " ") ?? "—"}</td>
-                <td className="px-3 py-2">{c.relationshipStatus.replaceAll("_", " ")}</td>
-              </tr>
-            ))}
+            {sortedCompanies.map((c) => {
+              const daysSinceUpdate = daysSince(c.updatedAt);
+              const isStale = daysSinceUpdate >= STALE_DAYS;
+              return (
+                <tr
+                  key={c.id}
+                  className={`border-t border-l-4 ${RECORD_KIND_BORDER_CLASS.COMPANY} ${c.archivedAt ? "opacity-50" : ""}`}
+                >
+                  <td className="px-3 py-2">
+                    <Link to={`/companies/${c.id}`} className={COMPANY_LINK_CLASS}>
+                      {c.name}
+                    </Link>
+                    {c.archivedAt && (
+                      <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Archived</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <InlineSelect
+                      value={c.companyType ?? ""}
+                      options={COMPANY_TYPE_OPTIONS}
+                      placeholder="Set type"
+                      onSave={(v) => saveCompanyType(c.id, v)}
+                    />
+                  </td>
+                  <td className="px-3 py-2">{c.relationshipStatus.replaceAll("_", " ")}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-600">
+                    {c.lastActionAt ? new Date(c.lastActionAt).toLocaleDateString() : "—"}
+                  </td>
+                  <td className={`px-3 py-2 whitespace-nowrap ${isStale ? "font-semibold text-red-600" : "text-slate-600"}`}>
+                    {daysSinceUpdate} days
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -220,15 +348,24 @@ export function CompanyDetail() {
   }, [company]);
 
   // Every interaction logged against any Contact or Candidate linked to this
-  // company, combined into one feed — distinct from the Interactions tab,
-  // which only shows interactions logged directly against the Company
-  // itself. Covers both sides so a colour-coded dot per row is what tells
-  // you, at a glance, whether that entry was with a Client Contact or a
-  // Candidate.
+  // company, plus lightweight BD Target Contact activity from this
+  // company's Opportunities, combined into one feed — distinct from the
+  // Interactions tab, which only shows interactions logged directly against
+  // the Company itself. A colour-coded dot (or a dashed "Prospect" badge for
+  // Target Contacts) tells you, at a glance, who each entry was with.
   const combinedContactActivity = useMemo(() => {
     const people = [...(company?.contacts ?? []), ...(company?.employeesAt ?? [])];
-    const entries = people.flatMap((p: any) => (p.interactions ?? []).map((i: any) => ({ ...i, contact: p })));
-    return entries.sort((a: any, b: any) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+    const personEntries = people.flatMap((p: any) =>
+      (p.interactions ?? []).map((i: any) => ({ ...i, kind: "person" as const, contact: p }))
+    );
+    const targetContactEntries = (company?.opportunities ?? []).flatMap((o: any) =>
+      (o.targetContacts ?? []).flatMap((tc: any) =>
+        (tc.interactions ?? []).map((i: any) => ({ ...i, kind: "targetContact" as const, contact: tc, opportunityId: o.id }))
+      )
+    );
+    return [...personEntries, ...targetContactEntries].sort(
+      (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
+    );
   }, [company]);
 
   const ACTIVITY_PREVIEW_COUNT = 10;
@@ -257,9 +394,15 @@ export function CompanyDetail() {
               inputClassName="text-xl font-semibold"
             />
           </div>
-          <p className="ml-2 text-sm text-slate-500">
-            {company.companyType?.replaceAll("_", " ")} · {company.relationshipStatus.replaceAll("_", " ")}
-          </p>
+          <div className="ml-1 flex items-center gap-1 text-sm text-slate-500">
+            <InlineSelect
+              value={company.companyType ?? ""}
+              options={COMPANY_TYPE_OPTIONS}
+              placeholder="Set type"
+              onSave={(v) => saveField("companyType", v)}
+            />
+            <span>· {company.relationshipStatus.replaceAll("_", " ")}</span>
+          </div>
         </div>
         <div className="flex shrink-0 gap-2">
           <button
@@ -371,12 +514,23 @@ export function CompanyDetail() {
               {visibleActivity.map((i: any) => (
                 <tr key={i.id} className="border-t">
                   <td className="px-2 py-1.5">
-                    <span className="flex items-center gap-1.5">
-                      <RecordTypeDot kind={personRecordKind(i.contact)} />
-                      <Link to={`/people/${i.contact.id}`} className={personLinkClass(i.contact)}>
-                        {fullName(i.contact)}
-                      </Link>
-                    </span>
+                    {i.kind === "targetContact" ? (
+                      <span className="flex items-center gap-1.5">
+                        <Link to={`/opportunities/${i.opportunityId}`} className="font-medium text-slate-600 hover:underline">
+                          {i.contact.name}
+                        </Link>
+                        <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-normal uppercase text-slate-500">
+                          Prospect
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <RecordTypeDot kind={personRecordKind(i.contact)} />
+                        <Link to={`/people/${i.contact.id}`} className={personLinkClass(i.contact)}>
+                          {fullName(i.contact)}
+                        </Link>
+                      </span>
+                    )}
                   </td>
                   <td className="px-2 py-1.5 text-slate-500">{i.type.replaceAll("_", " ")}</td>
                   <td className="px-2 py-1.5 text-xs text-slate-400">{new Date(i.occurredAt).toLocaleDateString()}</td>
