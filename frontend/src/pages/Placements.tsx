@@ -120,7 +120,7 @@ export default function Placements() {
                     )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    <Link to={`/jobs/${p.job.id}`} className="text-blue-600">
+                    <Link to={`/jobs/${p.job.id}`} className={RECORD_KIND_TEXT_CLASS.JOB}>
                       {p.job?.title}
                     </Link>
                   </td>

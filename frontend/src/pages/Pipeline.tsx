@@ -55,7 +55,10 @@ export default function Pipeline() {
                     {fullName(pairing.candidate)}
                   </Link>
                   <p className="text-slate-500">
-                    <Link to={`/jobs/${pairing.job.id}`}>{pairing.job.title}</Link> — {pairing.job.company?.name}
+                    <Link to={`/jobs/${pairing.job.id}`} className={RECORD_KIND_TEXT_CLASS.JOB}>
+                      {pairing.job.title}
+                    </Link>{" "}
+                    — {pairing.job.company?.name}
                   </p>
                   <select
                     className="mt-1 w-full rounded border px-1 py-1 text-xs"

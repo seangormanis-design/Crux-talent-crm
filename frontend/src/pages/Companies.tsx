@@ -12,7 +12,13 @@ import { OPPORTUNITY_STAGE_LABELS, OPPORTUNITY_STAGES, LOST_REASON_TAGS, MEETING
 import RecordTypeDot from "../components/RecordTypeDot";
 import RecordTypeBadge from "../components/RecordTypeBadge";
 import { fullName } from "../lib/personName";
-import { COMPANY_LINK_CLASS, RECORD_KIND_BORDER_CLASS, personLinkClass, personRecordKind } from "../lib/recordColors";
+import {
+  COMPANY_LINK_CLASS,
+  JOB_LINK_CLASS,
+  RECORD_KIND_BORDER_CLASS,
+  personLinkClass,
+  personRecordKind,
+} from "../lib/recordColors";
 
 interface Company {
   id: string;
@@ -257,14 +263,17 @@ export function CompanyDetail() {
 
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <InlineField
-            value={company.name}
-            placeholder="Company name"
-            required
-            onSave={(v) => saveField("name", v)}
-            displayClassName="text-xl font-semibold -ml-2"
-            inputClassName="text-xl font-semibold"
-          />
+          <div className="flex items-center gap-2">
+            <RecordTypeDot kind="COMPANY" className="h-2.5 w-2.5" />
+            <InlineField
+              value={company.name}
+              placeholder="Company name"
+              required
+              onSave={(v) => saveField("name", v)}
+              displayClassName="text-xl font-semibold -ml-2"
+              inputClassName="text-xl font-semibold"
+            />
+          </div>
           <p className="ml-2 text-sm text-slate-500">
             {company.companyType?.replaceAll("_", " ")} · {company.relationshipStatus.replaceAll("_", " ")}
           </p>
@@ -728,7 +737,7 @@ export function CompanyDetail() {
                         "—"
                       )}{" "}
                       —{" "}
-                      <Link to={`/jobs/${p.job.id}`} className="text-blue-600">
+                      <Link to={`/jobs/${p.job.id}`} className={JOB_LINK_CLASS}>
                         {p.job?.title}
                       </Link>
                     </span>
@@ -799,7 +808,7 @@ function JobRow({ job }: { job: any }) {
   return (
     <li className="flex items-center justify-between rounded border px-2 py-1.5">
       <span>
-        <Link to={`/jobs/${job.id}`} className="text-blue-600">
+        <Link to={`/jobs/${job.id}`} className={JOB_LINK_CLASS}>
           {job.title}
         </Link>{" "}
         <span className="text-slate-500">— {job.stage.replaceAll("_", " ")}</span>

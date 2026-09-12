@@ -5,7 +5,7 @@ import { fullName } from "../lib/personName";
 import CvDropCreatePanel from "../components/CvDropCreatePanel";
 import RecordTypeDot from "../components/RecordTypeDot";
 import { SCHEDULED_EVENT_FORMAT_LABELS } from "../components/ScheduledEventsPanel";
-import { COMPANY_LINK_CLASS, personLinkClass, personRecordKind } from "../lib/recordColors";
+import { COMPANY_LINK_CLASS, JOB_LINK_CLASS, personLinkClass, personRecordKind } from "../lib/recordColors";
 
 interface StageCount {
   stage: string;
@@ -160,11 +160,14 @@ export default function Dashboard() {
 
         <FeedBlock title="Stale jobs (no movement in 14+ days)">
           {data.activityFeed.staleJobs.map((job) => (
-            <li key={job.id}>
-              <Link to={`/jobs/${job.id}`} className="text-blue-600">
-                {job.title}
-              </Link>{" "}
-              — {job.company?.name} ({job.stage.replaceAll("_", " ")})
+            <li key={job.id} className="flex items-start gap-1.5">
+              <RecordTypeDot kind="JOB" className="mt-1" />
+              <span>
+                <Link to={`/jobs/${job.id}`} className={JOB_LINK_CLASS}>
+                  {job.title}
+                </Link>{" "}
+                — {job.company?.name} ({job.stage.replaceAll("_", " ")})
+              </span>
             </li>
           ))}
         </FeedBlock>

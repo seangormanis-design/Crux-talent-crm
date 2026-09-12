@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { fullName } from "../lib/personName";
 import RecordTypeDot from "../components/RecordTypeDot";
-import { COMPANY_LINK_CLASS, personLinkClass, personRecordKind } from "../lib/recordColors";
+import { COMPANY_LINK_CLASS, JOB_LINK_CLASS, personLinkClass, personRecordKind } from "../lib/recordColors";
 
 interface Results {
   people: any[];
@@ -67,8 +67,9 @@ export default function Search() {
           </ResultBlock>
           <ResultBlock title="Jobs">
             {results.jobs.map((j) => (
-              <li key={j.id}>
-                <Link to={`/jobs/${j.id}`} className="text-blue-600">
+              <li key={j.id} className="flex items-center gap-1.5">
+                <RecordTypeDot kind="JOB" />
+                <Link to={`/jobs/${j.id}`} className={JOB_LINK_CLASS}>
                   {j.title}
                 </Link>{" "}
                 — {j.company?.name}
@@ -78,8 +79,9 @@ export default function Search() {
           </ResultBlock>
           <ResultBlock title="Opportunities">
             {results.opportunities.map((o) => (
-              <li key={o.id}>
-                <Link to={`/companies/${o.company?.id}`} className="text-blue-600">
+              <li key={o.id} className="flex items-center gap-1.5">
+                <RecordTypeDot kind="COMPANY" />
+                <Link to={`/companies/${o.company?.id}`} className={COMPANY_LINK_CLASS}>
                   {o.title}
                 </Link>{" "}
                 — {o.company?.name} ({o.stage.replaceAll("_", " ")})

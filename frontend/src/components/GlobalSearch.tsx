@@ -135,6 +135,7 @@ export default function GlobalSearch() {
                   to: `/jobs/${j.id}`,
                   primary: j.title,
                   secondary: j.company?.name,
+                  kind: "JOB" as const,
                 }))}
                 onSelect={(to) => {
                   setOpen(false);

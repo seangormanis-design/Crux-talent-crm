@@ -9,9 +9,10 @@ import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import JobCreateForm from "../components/JobCreateForm";
 import CandidatePipelinePicker from "../components/CandidatePipelinePicker";
 import ScheduledEventsPanel from "../components/ScheduledEventsPanel";
+import RecordTypeDot from "../components/RecordTypeDot";
 import { fullName } from "../lib/personName";
 import { ordinal } from "../lib/ordinal";
-import { RECORD_KIND_BORDER_CLASS, RECORD_KIND_TEXT_CLASS, personLinkClass } from "../lib/recordColors";
+import { JOB_LINK_CLASS, RECORD_KIND_BORDER_CLASS, RECORD_KIND_TEXT_CLASS, personLinkClass } from "../lib/recordColors";
 
 interface Job {
   id: string;
@@ -178,9 +179,12 @@ export function JobsList() {
           </thead>
           <tbody>
             {jobs.map((j) => (
-              <tr key={j.id} className={`border-t ${j.archivedAt ? "opacity-50" : ""}`}>
+              <tr
+                key={j.id}
+                className={`border-t border-l-4 ${RECORD_KIND_BORDER_CLASS.JOB} ${j.archivedAt ? "opacity-50" : ""}`}
+              >
                 <td className="px-3 py-2">
-                  <Link to={`/jobs/${j.id}`} className="text-blue-600">
+                  <Link to={`/jobs/${j.id}`} className={JOB_LINK_CLASS}>
                     {j.title}
                   </Link>
                   {j.archivedAt && (
@@ -363,7 +367,10 @@ export function JobDetail() {
 
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-lg font-semibold">{job.title}</h1>
+          <h1 className="flex items-center gap-2 text-lg font-semibold">
+            <RecordTypeDot kind="JOB" className="h-2.5 w-2.5" />
+            {job.title}
+          </h1>
           <p className="text-xs text-slate-500">
             {job.company?.name} · {job.location} · {job.workPreference}
           </p>
