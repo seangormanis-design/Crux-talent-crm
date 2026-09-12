@@ -10,6 +10,7 @@ import PersonCreateForm from "../components/PersonCreateForm";
 import JobCreateForm from "../components/JobCreateForm";
 import OpportunityCreateForm from "../components/OpportunityCreateForm";
 import OpportunityStageControl from "../components/OpportunityStageControl";
+import CompanyTermsPanel from "../components/CompanyTermsPanel";
 import ScheduledEventsPanel from "../components/ScheduledEventsPanel";
 import { MEETING_STAGE } from "./BdFunnel";
 import RecordTypeDot from "../components/RecordTypeDot";
@@ -43,6 +44,9 @@ interface Company {
   // computed server-side from the same aggregated data the Company detail
   // page's own activity timeline is built from.
   lastActionAt?: string | null;
+  // Set true the moment a Won Opportunity converts this company to Active
+  // Client with no Terms on file yet — see CLAUDE.md's Terms onboarding rule.
+  needsTermsSetup?: boolean;
 }
 
 const COMPANY_TYPE_OPTIONS = [
@@ -275,7 +279,7 @@ export function CompaniesList() {
   );
 }
 
-const COMPANY_TABS = ["Contacts", "Candidates", "Jobs", "Opportunities", "Placements", "Interactions"] as const;
+const COMPANY_TABS = ["Contacts", "Candidates", "Jobs", "Opportunities", "Placements", "Terms", "Interactions"] as const;
 type CompanyTab = (typeof COMPANY_TABS)[number];
 
 export function CompanyDetail() {
@@ -380,6 +384,15 @@ export function CompanyDetail() {
         </div>
       )}
 
+      {company.needsTermsSetup && (
+        <div className="flex items-center justify-between rounded border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          <span>Terms not yet set up for this new Active Client.</span>
+          <button type="button" onClick={() => setActiveTab("Terms")} className="font-medium underline hover:no-underline">
+            Set up now
+          </button>
+        </div>
+      )}
+
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2">
@@ -438,6 +451,7 @@ export function CompanyDetail() {
               {tab === "Jobs" && activeJobs.length + closedJobs.length > 0 && ` (${activeJobs.length + closedJobs.length})`}
               {tab === "Opportunities" && company.opportunities?.length > 0 && ` (${company.opportunities.length})`}
               {tab === "Placements" && placements.length > 0 && ` (${placements.length})`}
+              {tab === "Terms" && company.needsTermsSetup && <span className="ml-1 text-amber-600">⚠</span>}
               {tab === "Interactions" && company.interactions?.length > 0 && ` (${company.interactions.length})`}
             </button>
           ))}
@@ -843,6 +857,13 @@ export function CompanyDetail() {
             })}
             {!placements.length && <li className="text-slate-400">No placements yet</li>}
           </ul>
+        </section>
+      )}
+
+      {activeTab === "Terms" && (
+        <section className="rounded border bg-white p-3">
+          <h2 className="mb-2 font-medium">Terms</h2>
+          <CompanyTermsPanel companyId={company.id} companyName={company.name} onSaved={load} />
         </section>
       )}
 

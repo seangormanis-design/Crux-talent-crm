@@ -24,6 +24,7 @@ dashboardRouter.get("/", async (_req, res) => {
     followUps,
     invoicesDue,
     upcomingScheduledEvents,
+    companiesNeedingTerms,
   ] = await Promise.all([
       prisma.job.groupBy({ by: ["stage"], where: { archivedAt: null }, _count: { _all: true } }),
       // Same population as the by-stage breakdown, cut by the recruiter's own
@@ -83,6 +84,13 @@ dashboardRouter.get("/", async (_req, res) => {
         orderBy: { scheduledAt: "asc" },
         take: 50,
       }),
+      // New Active Clients (converted via Opportunity Won) who still need
+      // their Terms onboarding step completed — see CLAUDE.md's Terms rule.
+      prisma.company.findMany({
+        where: { needsTermsSetup: true, archivedAt: null },
+        orderBy: { updatedAt: "desc" },
+        take: 20,
+      }),
     ]);
 
   res.json({
@@ -96,6 +104,7 @@ dashboardRouter.get("/", async (_req, res) => {
       followUps,
       invoicesDue,
       upcomingScheduledEvents,
+      companiesNeedingTerms,
     },
   });
 });

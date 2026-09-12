@@ -28,6 +28,7 @@ interface DashboardData {
     followUps: any[];
     invoicesDue: any[];
     upcomingScheduledEvents: any[];
+    companiesNeedingTerms: any[];
   };
 }
 
@@ -170,6 +171,18 @@ export default function Dashboard() {
               </span>
             </li>
           ))}
+        </FeedBlock>
+
+        <FeedBlock title="Terms not yet set up">
+          {data.activityFeed.companiesNeedingTerms.map((company) => (
+            <li key={company.id}>
+              <Link to={`/companies/${company.id}`} className={COMPANY_LINK_CLASS}>
+                {company.name}
+              </Link>{" "}
+              — new Active Client, Terms still outstanding
+            </li>
+          ))}
+          {!data.activityFeed.companiesNeedingTerms.length && <li className="text-slate-400">Nothing outstanding</li>}
         </FeedBlock>
 
         <FeedBlock title="Candidates awaiting response (CV sent)">

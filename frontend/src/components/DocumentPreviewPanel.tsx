@@ -40,14 +40,16 @@ export default function DocumentPreviewPanel({
   documents,
   personId,
   jobId,
+  companyId,
   onChange,
   onFileSelected,
 }: {
   label: string;
-  documentType: "CANDIDATE_CV" | "JOB_SPEC";
+  documentType: "CANDIDATE_CV" | "JOB_SPEC" | "TERMS_OF_BUSINESS";
   documents: DocumentRecord[];
   personId?: string;
   jobId?: string;
+  companyId?: string;
   onChange: () => void;
   // When provided, a chosen file is handed to the parent instead of being
   // uploaded directly — used for Candidate CVs, where picking a file starts
@@ -135,6 +137,7 @@ export default function DocumentPreviewPanel({
         formData.append("type", documentType);
         if (personId) formData.append("personId", personId);
         if (jobId) formData.append("jobId", jobId);
+        if (companyId) formData.append("companyId", companyId);
         const created = await api.post<DocumentRecord>("/api/documents", formData);
         onChange();
         setSelectedVersionId(created.versions[created.versions.length - 1]?.id ?? created.versions[0]?.id);

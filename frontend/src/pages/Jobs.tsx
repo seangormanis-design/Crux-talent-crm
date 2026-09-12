@@ -897,6 +897,12 @@ export function JobDetail() {
                 required
               />
             </div>
+            {job.company?.terms?.feeStructurePercentage != null && (
+              <p className="text-xs text-slate-400">
+                Defaulted from {job.company.name}'s Fee Structure ({job.company.terms.feeStructurePercentage}%) — edit if
+                different for this placement.
+              </p>
+            )}
             <label className="block">
               <span className="mb-1 block text-xs text-slate-500">Placement start date</span>
               <input
@@ -920,7 +926,13 @@ export function JobDetail() {
           </form>
         ) : (
           <button
-            onClick={() => setShowPlacementForm(true)}
+            onClick={() => {
+              setShowPlacementForm(true);
+              // Default Fee % from the company's Terms Fee Structure — still
+              // editable below for a one-off exception on this placement.
+              const companyFeePct = job.company?.terms?.feeStructurePercentage;
+              if (companyFeePct != null && !feeValue) setFeeValue(String(companyFeePct));
+            }}
             className="rounded bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700"
           >
             Mark as Placed

@@ -75,7 +75,49 @@ model Company {
   candidateProspects CandidateProspect[]
   opportunities Opportunity[]
 
+  terms CompanyTerms?
+
+  // Set true the moment an Opportunity's Won transition first converts this
+  // company to Active Client with no Terms yet on file — cleared the moment
+  // Terms are actually saved (see CompanyTerms below). Surfaced as a nudge on
+  // the Company page and the Dashboard activity feed so onboarding a new
+  // client's Terms doesn't get forgotten.
+  needsTermsSetup Boolean @default(false)
+
   @@map("companies")
+}
+
+// Commercial terms agreed with an Active Client — fee %, payment terms,
+// invoicing contact, special arrangements, plus the Terms of Business
+// document itself (via the existing Documents feature). One company has at
+// most one Terms record; it doesn't exist at all until first filled in,
+// which is what lets `Company.needsTermsSetup` distinguish "never set up"
+// from "deliberately left blank."
+model CompanyTerms {
+  id        String  @id @default(uuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // The standard fee %, used to default the Fee % on future Placements for
+  // this company (still editable per-placement for one-off exceptions).
+  feeStructurePercentage Decimal? @db.Decimal(5, 2)
+  feeExceptions          String?
+
+  paymentTerms String?
+
+  // The Client Contact who should receive invoices — not always someone
+  // already in the system, so the UI supports creating a brand-new Client
+  // Contact on the fly via the single PersonCreateForm, same as everywhere
+  // else a Client Contact is created.
+  invoicingContactId String?
+  invoicingContact   Person? @relation("CompanyTermsInvoicingContact", fields: [invoicingContactId], references: [id])
+
+  specialTerms String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("company_terms")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -274,6 +316,9 @@ model Person {
   // Set if this Person was auto-created by converting a lightweight
   // Target Contact (see TargetContact.convertedPersonId).
   targetContactOrigin TargetContact? @relation("TargetContactConverted")
+  // Companies whose invoicing contact this Client Contact is (see
+  // CompanyTerms.invoicingContactId).
+  invoicingForTerms CompanyTerms[] @relation("CompanyTermsInvoicingContact")
 
   @@map("people")
   @@index([personType])

@@ -20,6 +20,22 @@ const companySchema = z.object({
   notes: z.string().optional(),
 });
 
+// A blank/omitted number field means "leave unchanged" is ambiguous for a
+// controlled input that was actually cleared — treat blank as an explicit
+// clear (null), same reasoning as zodHelpers' nullableDate.
+const nullableNumber = z
+  .preprocess((v) => (v === "" || v === null || v === undefined ? null : Number(v)), z.number().min(0).max(100).nullable())
+  .optional();
+const nullableUuid = z.preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable()).optional();
+
+const companyTermsSchema = z.object({
+  feeStructurePercentage: nullableNumber,
+  feeExceptions: optionalString,
+  paymentTerms: optionalString,
+  invoicingContactId: nullableUuid,
+  specialTerms: optionalString,
+});
+
 companiesRouter.get("/", async (req, res) => {
   const { q, relationshipStatus, companyType, includeArchived } = req.query;
 
@@ -128,6 +144,7 @@ companiesRouter.get("/:id", async (req, res) => {
       documents: { include: { versions: true } },
       interactions: { orderBy: { occurredAt: "desc" } },
       tags: { include: { tag: true } },
+      terms: { include: { invoicingContact: true } },
     },
   });
   if (!company) return res.status(404).json({ error: "Company not found" });
@@ -151,6 +168,28 @@ companiesRouter.patch("/:id", async (req, res) => {
     data: parsed.data,
   });
   res.json(company);
+});
+
+// Upserts, since a company has no Terms row at all until first filled in —
+// that absence is what lets `needsTermsSetup` mean "never set up" rather
+// than "set up with everything blank." Any successful save here completes
+// the post-Won onboarding nudge, regardless of which fields were filled.
+companiesRouter.patch("/:id/terms", async (req, res) => {
+  const parsed = companyTermsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const terms = await prisma.$transaction(async (tx) => {
+    const upserted = await tx.companyTerms.upsert({
+      where: { companyId: req.params.id },
+      update: parsed.data,
+      create: { companyId: req.params.id, ...parsed.data },
+      include: { invoicingContact: true },
+    });
+    await tx.company.update({ where: { id: req.params.id }, data: { needsTermsSetup: false } });
+    return upserted;
+  });
+
+  res.json(terms);
 });
 
 // No hard delete for companies — they anchor jobs/interactions/documents

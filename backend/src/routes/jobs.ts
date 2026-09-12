@@ -89,7 +89,9 @@ jobsRouter.get("/:id", async (req, res) => {
   const job = await prisma.job.findUnique({
     where: { id: req.params.id },
     include: {
-      company: true,
+      // terms included so the placement form can default Fee % from the
+      // company's own Fee Structure percentage.
+      company: { include: { terms: true } },
       essentialSkills: true,
       idealSkills: true,
       roleTypes: true,

@@ -150,8 +150,23 @@ opportunitiesRouter.post("/:id/stage", async (req, res) => {
   }
 
   const opportunity = await prisma.$transaction(async (tx) => {
-    if (needsConversion) {
-      await convertOpportunityToRealRecords(tx, current);
+    const convertedCompanyId = needsConversion ? await convertOpportunityToRealRecords(tx, current) : current.companyId;
+
+    // Runs before the opportunity update below (which re-fetches the company
+    // via OPPORTUNITY_INCLUDE) so the response reflects the fresh state, not
+    // what the company looked like before this transaction.
+    if (parsed.data.stage === "WON" && convertedCompanyId) {
+      const existingTerms = await tx.companyTerms.findUnique({ where: { companyId: convertedCompanyId } });
+      await tx.company.update({
+        where: { id: convertedCompanyId },
+        data: {
+          relationshipStatus: "ACTIVE_CLIENT",
+          // Only flag a company that doesn't already have Terms on file —
+          // this can be a second (or later) Won opportunity for the same
+          // company, which shouldn't re-prompt for something already set up.
+          needsTermsSetup: !existingTerms,
+        },
+      });
     }
 
     const updated = await tx.opportunity.update({
@@ -164,10 +179,6 @@ opportunitiesRouter.post("/:id/stage", async (req, res) => {
       },
       include: OPPORTUNITY_INCLUDE,
     });
-
-    if (parsed.data.stage === "WON") {
-      await tx.company.update({ where: { id: updated.companyId! }, data: { relationshipStatus: "ACTIVE_CLIENT" } });
-    }
 
     return updated;
   });
