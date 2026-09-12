@@ -4,7 +4,16 @@ import { api } from "../api/client";
 import { fullName } from "../lib/personName";
 import { RECORD_KIND_BORDER_CLASS, RECORD_KIND_TEXT_CLASS } from "../lib/recordColors";
 
-const CANDIDATE_STAGES = ["SHORTLISTED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"];
+const STAGE_LABELS: Record<string, string> = {
+  SHORTLISTED: "Shortlisted",
+  CV_SENT: "CV Sent",
+  FIRST_INTERVIEW: "1st Interview",
+  FURTHER_INTERVIEWS: "Further Interviews",
+  OFFERED: "Offered",
+  PLACED: "Placed",
+  REJECTED: "Rejected",
+};
+const CANDIDATE_STAGES = Object.keys(STAGE_LABELS);
 
 interface Pairing {
   id: string;
@@ -34,7 +43,7 @@ export default function Pipeline() {
         {CANDIDATE_STAGES.map((stage) => (
           <div key={stage} className="w-64 shrink-0 rounded border bg-white">
             <div className="border-b bg-slate-100 px-3 py-2 text-sm font-medium">
-              {stage.replaceAll("_", " ")} ({board[stage]?.length ?? 0})
+              {STAGE_LABELS[stage]} ({board[stage]?.length ?? 0})
             </div>
             <div className="space-y-2 p-2">
               {board[stage]?.map((pairing) => (
@@ -55,7 +64,7 @@ export default function Pipeline() {
                   >
                     {CANDIDATE_STAGES.map((s) => (
                       <option key={s} value={s}>
-                        {s.replaceAll("_", " ")}
+                        {STAGE_LABELS[s]}
                       </option>
                     ))}
                   </select>

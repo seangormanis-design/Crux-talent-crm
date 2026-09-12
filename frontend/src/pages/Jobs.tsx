@@ -42,7 +42,8 @@ const FEE_TYPE_OPTIONS = [
 const PIPELINE_STAGE_LABELS: Record<string, string> = {
   SHORTLISTED: "Shortlisted",
   CV_SENT: "CV Sent",
-  INTERVIEWING: "Interviewing",
+  FIRST_INTERVIEW: "1st Interview",
+  FURTHER_INTERVIEWS: "Further Interviews",
   OFFERED: "Offered",
   PLACED: "Placed",
   REJECTED: "Rejected",

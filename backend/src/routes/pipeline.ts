@@ -5,7 +5,15 @@ import { AuthenticatedRequest } from "../middleware/requireAuth";
 
 export const pipelineRouter = Router();
 
-const CANDIDATE_STAGES = ["SHORTLISTED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"] as const;
+const CANDIDATE_STAGES = [
+  "SHORTLISTED",
+  "CV_SENT",
+  "FIRST_INTERVIEW",
+  "FURTHER_INTERVIEWS",
+  "OFFERED",
+  "PLACED",
+  "REJECTED",
+] as const;
 
 // Kanban board data: every job-candidate pairing grouped by its own sub-stage,
 // independent of the job's overall stage.

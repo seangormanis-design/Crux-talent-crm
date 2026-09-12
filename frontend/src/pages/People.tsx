@@ -52,7 +52,18 @@ function lastNoteOf(p: Person): string {
   return latest ? new Date(latest).toLocaleDateString() : "—";
 }
 
-const CANDIDATE_STAGE_OPTIONS = ["SHORTLISTED", "CV_SENT", "REJECTED", "INTERVIEWING", "OFFERED", "PLACED"];
+// Candidate-level pipeline stage (JobCandidate.stage) — same set as the
+// Job/Pipeline kanban boards.
+const CANDIDATE_STAGE_LABELS: Record<string, string> = {
+  SHORTLISTED: "Shortlisted",
+  CV_SENT: "CV Sent",
+  FIRST_INTERVIEW: "1st Interview",
+  FURTHER_INTERVIEWS: "Further Interviews",
+  OFFERED: "Offered",
+  PLACED: "Placed",
+  REJECTED: "Rejected",
+};
+const CANDIDATE_STAGE_OPTIONS = Object.keys(CANDIDATE_STAGE_LABELS);
 
 interface ColumnDef {
   key: string;
@@ -105,7 +116,7 @@ function cellValue(p: Person, key: string): string {
       );
     case "stage": {
       const latest = p.jobApplications?.[0];
-      return latest ? `${latest.stage.replaceAll("_", " ")} (${latest.job.title})` : "—";
+      return latest ? `${CANDIDATE_STAGE_LABELS[latest.stage] ?? latest.stage} (${latest.job.title})` : "—";
     }
     case "lastNote":
       return lastNoteOf(p);
@@ -335,7 +346,7 @@ export function PeopleList() {
           <option value="">All stages</option>
           {CANDIDATE_STAGE_OPTIONS.map((s) => (
             <option key={s} value={s}>
-              {s.replaceAll("_", " ")}
+              {CANDIDATE_STAGE_LABELS[s]}
             </option>
           ))}
         </select>
