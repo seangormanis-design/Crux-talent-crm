@@ -16,6 +16,21 @@ const NOTE_SECTION_LABELS = ["PRESENT", "PAST", "FUTURE", "AOB", "THREATS", "LEA
 // file can inject markup into the page.
 const HEADLINE_OPTIONS = "MaxWords=30,MinWords=15,ShortWord=3,StartSel=~~HL~~,StopSel=~~HL~~";
 
+// Pulls plain search terms back out of a websearch-style query (quoted
+// phrases, bare words, ignoring the "OR" keyword and "-exclude" terms) —
+// only used to best-effort locate which Qualification Call section a match
+// falls under, not for the actual search itself.
+function extractSearchTerms(query: string): string[] {
+  const terms: string[] = [];
+  for (const m of query.match(/"([^"]+)"/g) ?? []) terms.push(m.slice(1, -1));
+  for (const word of query.replace(/"[^"]+"/g, " ").split(/\s+/)) {
+    const w = word.trim();
+    if (!w || w.startsWith("-") || w.toUpperCase() === "OR") continue;
+    terms.push(w);
+  }
+  return terms;
+}
+
 function locateSection(notes: string, query: string): string | null {
   const headers: { label: string; index: number }[] = [];
   for (const label of NOTE_SECTION_LABELS) {
@@ -25,7 +40,15 @@ function locateSection(notes: string, query: string): string | null {
   if (!headers.length) return null;
   headers.sort((a, b) => a.index - b.index);
 
-  const matchIndex = notes.toLowerCase().indexOf(query.toLowerCase());
+  const lowerNotes = notes.toLowerCase();
+  let matchIndex = -1;
+  for (const term of extractSearchTerms(query)) {
+    const idx = lowerNotes.indexOf(term.toLowerCase());
+    if (idx !== -1) {
+      matchIndex = idx;
+      break;
+    }
+  }
   if (matchIndex === -1) return null;
 
   let containing: string | null = null;
@@ -48,13 +71,17 @@ interface CvMatch {
 // Every CV version, not just the current one — searchVector is a generated
 // Postgres column (STORED, GIN-indexed) over DocumentVersion.extractedText,
 // populated at upload time for CV document types only (see documents.ts).
+// websearch_to_tsquery gives Google-style query syntax for free: bare words
+// are ANDed (unchanged from before), "quoted phrases" require that exact
+// wording, and OR/-exclude are supported — and unlike to_tsquery it never
+// throws on malformed input, which matters for a raw user-facing search box.
 async function searchCvs(q: string, limit: number): Promise<CvMatch[]> {
   const rows = await prisma.$queryRaw<{ id: string; snippet: string }[]>`
     SELECT id,
-      ts_headline('english', "extractedText", plainto_tsquery('english', ${q}), ${HEADLINE_OPTIONS}) AS snippet
+      ts_headline('english', "extractedText", websearch_to_tsquery('english', ${q}), ${HEADLINE_OPTIONS}) AS snippet
     FROM document_versions
-    WHERE "searchVector" @@ plainto_tsquery('english', ${q})
-    ORDER BY ts_rank("searchVector", plainto_tsquery('english', ${q})) DESC
+    WHERE "searchVector" @@ websearch_to_tsquery('english', ${q})
+    ORDER BY ts_rank("searchVector", websearch_to_tsquery('english', ${q})) DESC
     LIMIT ${limit}
   `;
   if (!rows.length) return [];
@@ -99,13 +126,14 @@ interface NoteMatch {
 // (concatenated with labeled headers into one Interaction.notes string —
 // see People.tsx's buildQualificationCallNotes). searchVector is generated
 // from `notes` directly, so nothing needs populating at write time here.
+// See searchCvs above for why websearch_to_tsquery (quotes/OR support).
 async function searchNotes(q: string, limit: number): Promise<NoteMatch[]> {
   const rows = await prisma.$queryRaw<{ id: string; snippet: string }[]>`
     SELECT id,
-      ts_headline('english', "notes", plainto_tsquery('english', ${q}), ${HEADLINE_OPTIONS}) AS snippet
+      ts_headline('english', "notes", websearch_to_tsquery('english', ${q}), ${HEADLINE_OPTIONS}) AS snippet
     FROM interactions
-    WHERE "searchVector" @@ plainto_tsquery('english', ${q})
-    ORDER BY ts_rank("searchVector", plainto_tsquery('english', ${q})) DESC
+    WHERE "searchVector" @@ websearch_to_tsquery('english', ${q})
+    ORDER BY ts_rank("searchVector", websearch_to_tsquery('english', ${q})) DESC
     LIMIT ${limit}
   `;
   if (!rows.length) return [];
@@ -139,10 +167,25 @@ async function searchNotes(q: string, limit: number): Promise<NoteMatch[]> {
   return matches;
 }
 
+// A person typing "Rivera Alex" is still looking for "Alex Rivera" — every
+// word of the query must appear *somewhere* among a record's searchable
+// fields, but the words don't need to be in the same field or in order.
+// AND-ing one OR-clause per word (rather than one `contains` on the whole
+// query) is what makes that word-order-independent; a single-word query
+// collapses to exactly the same single OR-clause as before.
+type Contains = { contains: string; mode: "insensitive" };
+function wordConditions(q: string, fields: (c: Contains) => object[]): object[] {
+  return q
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => ({ OR: fields({ contains: word, mode: "insensitive" }) }));
+}
+
 // Global search: People, Companies, Jobs, and Opportunities (name/email/
-// notes substring match), plus full-text CV and interaction-note content.
-// `scope` narrows to just one content source ("cvs" | "notes"); the default
-// ("both") keeps the entity search and adds CV/note matches alongside it.
+// notes match, word-order-independent), plus full-text CV and interaction-
+// note content. `scope` narrows to just one content source ("cvs" |
+// "notes"); the default ("both") keeps the entity search and adds CV/note
+// matches alongside it.
 searchRouter.get("/", async (req, res) => {
   const q = String(req.query.q ?? "").trim();
   const limit = Math.min(Number(req.query.limit) || 20, 50);
@@ -150,7 +193,6 @@ searchRouter.get("/", async (req, res) => {
   const empty = { people: [], companies: [], jobs: [], opportunities: [], cvMatches: [], noteMatches: [] };
   if (!q) return res.json(empty);
 
-  const contains = { contains: q, mode: "insensitive" as const };
   const includeEntities = scope === "both";
   const includeCvs = scope === "cvs" || scope === "both";
   const includeNotes = scope === "notes" || scope === "both";
@@ -161,20 +203,20 @@ searchRouter.get("/", async (req, res) => {
           where: {
             deletedAt: null,
             archivedAt: null,
-            OR: [
-              { firstName: contains },
-              { surname: contains },
-              { workEmail: contains },
-              { personalEmail: contains },
-              { phone: contains },
-              { motivationsText: contains },
-              { relationshipNotes: contains },
-              { jobTitle: contains },
-              { currentTitle: contains },
-              { company: { name: contains } },
-              { currentEmployer: { name: contains } },
-              { interactions: { some: { notes: contains } } },
-            ],
+            AND: wordConditions(q, (c) => [
+              { firstName: c },
+              { surname: c },
+              { workEmail: c },
+              { personalEmail: c },
+              { phone: c },
+              { motivationsText: c },
+              { relationshipNotes: c },
+              { jobTitle: c },
+              { currentTitle: c },
+              { company: { name: c } },
+              { currentEmployer: { name: c } },
+              { interactions: { some: { notes: c } } },
+            ]),
           },
           include: { company: true, currentEmployer: true },
           take: limit,
@@ -182,32 +224,32 @@ searchRouter.get("/", async (req, res) => {
         prisma.company.findMany({
           where: {
             archivedAt: null,
-            OR: [
-              { name: contains },
-              { notes: contains },
-              { contacts: { some: { OR: [{ firstName: contains }, { surname: contains }] } } },
-              { interactions: { some: { notes: contains } } },
-            ],
+            AND: wordConditions(q, (c) => [
+              { name: c },
+              { notes: c },
+              { contacts: { some: { OR: [{ firstName: c }, { surname: c }] } } },
+              { interactions: { some: { notes: c } } },
+            ]),
           },
           take: limit,
         }),
         prisma.job.findMany({
           where: {
             archivedAt: null,
-            OR: [{ title: contains }, { company: { name: contains } }],
+            AND: wordConditions(q, (c) => [{ title: c }, { company: { name: c } }]),
           },
           include: { company: true },
           take: limit,
         }),
         prisma.opportunity.findMany({
           where: {
-            OR: [
-              { title: contains },
-              { notes: contains },
-              { lostReason: contains },
-              { company: { name: contains } },
-              { prospectCompanyName: contains },
-            ],
+            AND: wordConditions(q, (c) => [
+              { title: c },
+              { notes: c },
+              { lostReason: c },
+              { company: { name: c } },
+              { prospectCompanyName: c },
+            ]),
           },
           include: { company: true },
           take: limit,
