@@ -327,6 +327,20 @@ interface CombinedMatch {
   matchedTerms: { term: string; sources: CombinedSource[] }[];
 }
 
+// A term that's pure stopwords ("the", "a"...) reduces to an empty
+// tsquery, which `@@` never matches — so without this check, a stopword
+// anywhere in the query would make every AND-group containing it
+// unsatisfiable for every contact, since findCvHitsForTerm/
+// findNoteHitsForTerm would (correctly) return zero rows for it everywhere.
+// Postgres itself treats such a term as "not meaningful content", so it's
+// dropped from evaluation entirely (vacuously satisfied) rather than
+// treated as "never present".
+async function isEmptyTerm(term: ParsedTerm): Promise<boolean> {
+  const tq = termToTsQuery(term);
+  const rows = await prisma.$queryRaw<{ empty: boolean }[]>`SELECT websearch_to_tsquery('english', ${tq}) = ''::tsquery AS empty`;
+  return rows[0]?.empty ?? false;
+}
+
 async function searchCombined(q: string, limit: number): Promise<CombinedMatch[]> {
   const groups = parseQuery(q);
   const distinctTerms = new Map<string, ParsedTerm>();
@@ -334,13 +348,20 @@ async function searchCombined(q: string, limit: number): Promise<CombinedMatch[]
   if (!distinctTerms.size) return [];
 
   const perTerm = await Promise.all(
-    [...distinctTerms.values()].map(async (term) => ({
-      key: termKey(term),
-      term,
-      cvHits: await findCvHitsForTerm(term),
-      noteHits: await findNoteHitsForTerm(term),
-    }))
+    [...distinctTerms.values()].map(async (term) => {
+      if (await isEmptyTerm(term)) {
+        return { key: termKey(term), term, empty: true as const, cvHits: [], noteHits: [] };
+      }
+      return {
+        key: termKey(term),
+        term,
+        empty: false as const,
+        cvHits: await findCvHitsForTerm(term),
+        noteHits: await findNoteHitsForTerm(term),
+      };
+    })
   );
+  const emptyKeys = new Set(perTerm.filter((p) => p.empty).map((p) => p.key));
 
   interface ContactAccumulator {
     contactName: string;
@@ -382,7 +403,7 @@ async function searchCombined(q: string, limit: number): Promise<CombinedMatch[]
 
   const matches: CombinedMatch[] = [];
   for (const [contactId, c] of byContact) {
-    const isPresent = (t: ParsedTerm) => c.presentTerms.has(termKey(t));
+    const isPresent = (t: ParsedTerm) => emptyKeys.has(termKey(t)) || c.presentTerms.has(termKey(t));
     const satisfied = groups.some((group) => group.every((t) => (t.negated ? !isPresent(t) : isPresent(t))));
     if (!satisfied) continue;
 
