@@ -4,7 +4,7 @@ import { api } from "../api/client";
 import { fullName } from "../lib/personName";
 import RecordTypeDot from "../components/RecordTypeDot";
 import SearchSnippet from "../components/SearchSnippet";
-import { cvLocationLabel, noteLocationLabel, SearchScope } from "../components/GlobalSearch";
+import { cvLocationLabel, noteLocationLabel, combinedSourceLabel, SearchScope } from "../components/GlobalSearch";
 import { COMPANY_LINK_CLASS, JOB_LINK_CLASS, personLinkClass, personRecordKind } from "../lib/recordColors";
 
 interface Results {
@@ -14,6 +14,7 @@ interface Results {
   opportunities: any[];
   cvMatches: any[];
   noteMatches: any[];
+  combinedMatches: any[];
 }
 
 const SCOPE_OPTIONS: { value: SearchScope; label: string }[] = [
@@ -75,9 +76,43 @@ export default function Search() {
         ))}
       </div>
 
-      {results && (
+      {results && scope === "both" && (
+        <div className="mb-4">
+          <ResultBlock title="CVs &amp; Notes">
+            {results.combinedMatches.map((m: any) => (
+              <li key={m.contactId} className="flex items-start gap-1.5 rounded border p-2">
+                <RecordTypeDot kind={personRecordKind(m)} className="mt-1" />
+                <div>
+                  {m.isPerson ? (
+                    <Link to={`/people/${m.contactId}`} className={personLinkClass(m)}>
+                      {m.contactName}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">{m.contactName}</span>
+                  )}
+                  <ul className="mt-1 space-y-1">
+                    {m.matchedTerms.map((t: any) => (
+                      <li key={t.term} className="text-xs text-slate-500">
+                        <span className="font-medium text-slate-600">{t.term}</span> — found in{" "}
+                        {combinedSourceLabel(t.sources[0])}
+                        {t.sources.length > 1 ? ` (+${t.sources.length - 1} more)` : ""}
+                        <p className="truncate">
+                          <SearchSnippet text={t.sources[0].snippet} />
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </li>
+            ))}
+            {!results.combinedMatches.length && <li className="text-slate-400">No matches</li>}
+          </ResultBlock>
+        </div>
+      )}
+
+      {results && (scope === "cvs" || scope === "notes") && (
         <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {(scope === "both" || scope === "cvs") && (
+          {scope === "cvs" && (
             <ResultBlock title="CVs">
               {results.cvMatches.map((m) => (
                 <li key={`${m.personId}-v${m.versionNo}`} className="flex items-start gap-1.5 rounded border p-2">
@@ -96,7 +131,7 @@ export default function Search() {
               {!results.cvMatches.length && <li className="text-slate-400">No matches</li>}
             </ResultBlock>
           )}
-          {(scope === "both" || scope === "notes") && (
+          {scope === "notes" && (
             <ResultBlock title="Notes / Interactions">
               {results.noteMatches.map((m: any, i: number) => (
                 <li key={`${m.contactId}-${m.occurredAt}-${i}`} className="flex items-start gap-1.5 rounded border p-2">

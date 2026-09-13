@@ -48,6 +48,27 @@ interface NoteMatch {
   section: string | null;
   snippet: string;
 }
+// A "Both" search AND-evaluates the query across a contact's CV(s) and
+// notes together — one term can be satisfied by the CV while another is
+// only satisfied by a note, so each result names, per matched term, exactly
+// which source(s) it came from (see search.ts's searchCombined).
+export interface CombinedSource {
+  kind: "cv" | "note";
+  documentType?: string;
+  versionNo?: number;
+  uploadedAt?: string;
+  interactionType?: string;
+  occurredAt?: string;
+  section?: string | null;
+  snippet: string;
+}
+export interface CombinedMatch {
+  contactId: string;
+  contactName: string;
+  isPerson: boolean;
+  personType: string;
+  matchedTerms: { term: string; sources: CombinedSource[] }[];
+}
 interface Results {
   people: Person[];
   companies: Company[];
@@ -55,9 +76,25 @@ interface Results {
   opportunities: Opportunity[];
   cvMatches: CvMatch[];
   noteMatches: NoteMatch[];
+  combinedMatches: CombinedMatch[];
 }
 
-const EMPTY: Results = { people: [], companies: [], jobs: [], opportunities: [], cvMatches: [], noteMatches: [] };
+const EMPTY: Results = {
+  people: [],
+  companies: [],
+  jobs: [],
+  opportunities: [],
+  cvMatches: [],
+  noteMatches: [],
+  combinedMatches: [],
+};
+
+// One source entry's location label, whichever kind it is.
+export function combinedSourceLabel(s: CombinedSource): string {
+  return s.kind === "cv"
+    ? cvLocationLabel({ documentType: s.documentType!, versionNo: s.versionNo!, uploadedAt: s.uploadedAt! })
+    : noteLocationLabel({ type: s.interactionType!, occurredAt: s.occurredAt!, section: s.section ?? null });
+}
 
 export type SearchScope = "both" | "cvs" | "notes";
 const SCOPE_OPTIONS: { value: SearchScope; label: string }[] = [
@@ -66,12 +103,12 @@ const SCOPE_OPTIONS: { value: SearchScope; label: string }[] = [
   { value: "notes", label: "Notes only" },
 ];
 
-export function cvLocationLabel(m: CvMatch): string {
+export function cvLocationLabel(m: { documentType: string; versionNo: number; uploadedAt: string }): string {
   const kind = m.documentType === "CRUX_FORMATTED_CV" ? "Crux-formatted CV" : "CV";
   return `${kind} v${m.versionNo}, uploaded ${new Date(m.uploadedAt).toLocaleDateString()}`;
 }
 
-export function noteLocationLabel(m: NoteMatch): string {
+export function noteLocationLabel(m: { type: string; occurredAt: string; section: string | null }): string {
   const base = `${m.type.replaceAll("_", " ").replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase())}, ${new Date(m.occurredAt).toLocaleDateString()}`;
   return m.section ? `${base}, ${m.section} section` : base;
 }
@@ -134,7 +171,8 @@ export default function GlobalSearch() {
     results.jobs.length ||
     results.opportunities.length ||
     results.cvMatches.length ||
-    results.noteMatches.length;
+    results.noteMatches.length ||
+    results.combinedMatches.length;
 
   return (
     <div ref={containerRef} className="relative w-full max-w-md">
@@ -222,36 +260,48 @@ export default function GlobalSearch() {
                   navigate(to);
                 }}
               />
-              <ContentResultGroup
-                label="CVs"
-                items={results.cvMatches.map((m) => ({
-                  key: `${m.personId}-v${m.versionNo}`,
-                  to: `/people/${m.personId}`,
-                  primary: m.personName,
-                  location: cvLocationLabel(m),
-                  snippet: m.snippet,
-                  kind: "CANDIDATE" as const,
-                }))}
-                onSelect={(to) => {
-                  setOpen(false);
-                  navigate(to);
-                }}
-              />
-              <ContentResultGroup
-                label="Notes / Interactions"
-                items={results.noteMatches.map((m) => ({
-                  key: `${m.contactId}-${m.occurredAt}-${m.section ?? ""}`,
-                  to: m.isPerson ? `/people/${m.contactId}` : undefined,
-                  primary: m.contactName,
-                  location: noteLocationLabel(m),
-                  snippet: m.snippet,
-                  kind: personRecordKind(m),
-                }))}
-                onSelect={(to) => {
-                  setOpen(false);
-                  navigate(to);
-                }}
-              />
+              {scope === "both" ? (
+                <CombinedResultGroup
+                  matches={results.combinedMatches}
+                  onSelect={(to) => {
+                    setOpen(false);
+                    navigate(to);
+                  }}
+                />
+              ) : (
+                <>
+                  <ContentResultGroup
+                    label="CVs"
+                    items={results.cvMatches.map((m) => ({
+                      key: `${m.personId}-v${m.versionNo}`,
+                      to: `/people/${m.personId}`,
+                      primary: m.personName,
+                      location: cvLocationLabel(m),
+                      snippet: m.snippet,
+                      kind: "CANDIDATE" as const,
+                    }))}
+                    onSelect={(to) => {
+                      setOpen(false);
+                      navigate(to);
+                    }}
+                  />
+                  <ContentResultGroup
+                    label="Notes / Interactions"
+                    items={results.noteMatches.map((m) => ({
+                      key: `${m.contactId}-${m.occurredAt}-${m.section ?? ""}`,
+                      to: m.isPerson ? `/people/${m.contactId}` : undefined,
+                      primary: m.contactName,
+                      location: noteLocationLabel(m),
+                      snippet: m.snippet,
+                      kind: personRecordKind(m),
+                    }))}
+                    onSelect={(to) => {
+                      setOpen(false);
+                      navigate(to);
+                    }}
+                  />
+                </>
+              )}
             </>
           )}
           <button
@@ -334,6 +384,51 @@ function ContentResultGroup({
           </button>
         ) : (
           <div key={item.key} className="px-3 py-1.5">
+            {body}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// A "Both" search's combined-pool matches — one row per contact, with every
+// matched term listed alongside exactly which source satisfied it (a CV
+// match can sit right next to a note match for the same person, since the
+// query was AND-evaluated across their combined CV + notes text).
+function CombinedResultGroup({ matches, onSelect }: { matches: CombinedMatch[]; onSelect: (to: string) => void }) {
+  if (!matches.length) return null;
+  return (
+    <div className="border-b py-1 last:border-b-0">
+      <p className="px-3 py-1 text-xs font-medium uppercase text-slate-400">CVs &amp; Notes</p>
+      {matches.map((m) => {
+        const to = m.isPerson ? `/people/${m.contactId}` : undefined;
+        const body = (
+          <>
+            <p className="flex items-center gap-1.5 text-sm">
+              <RecordTypeDot kind={personRecordKind(m)} />
+              {m.contactName}
+            </p>
+            <ul className="ml-4 list-disc text-xs text-slate-500">
+              {m.matchedTerms.map((t) => (
+                <li key={t.term}>
+                  {t.term} — found in {combinedSourceLabel(t.sources[0])}
+                </li>
+              ))}
+            </ul>
+          </>
+        );
+        return to ? (
+          <button
+            key={m.contactId}
+            type="button"
+            onClick={() => onSelect(to)}
+            className="block w-full px-3 py-1.5 text-left hover:bg-slate-50"
+          >
+            {body}
+          </button>
+        ) : (
+          <div key={m.contactId} className="px-3 py-1.5">
             {body}
           </div>
         );
