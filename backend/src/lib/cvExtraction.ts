@@ -17,6 +17,28 @@ export interface ExtractedCvFields {
   suggestedSkillNames: string[];
 }
 
+const EXTRACTION_TIMEOUT_MS = 20000;
+
+// pdf-parse (an old bundled pdf.js) and mammoth can both hang indefinitely —
+// rather than throw — on certain malformed, encrypted, or otherwise unusual
+// real-world files. With nothing else in the stack bounding these calls
+// (no request timeout on either the frontend fetch or this route), a hang
+// here used to mean the upload UI sat on "Parsing..." forever: no success,
+// no error, nothing in the logs, since a promise that never settles never
+// reaches a catch block. Racing against a timeout guarantees this always
+// resolves or rejects within a bounded time.
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
 export async function extractTextFromCv(buffer: Buffer, mimeType: string, fileName: string): Promise<string> {
   const isDocx =
     mimeType.includes("wordprocessingml") || fileName.toLowerCase().endsWith(".docx");
@@ -27,11 +49,19 @@ export async function extractTextFromCv(buffer: Buffer, mimeType: string, fileNa
     // internal structure and throws "bad XRef entry" on an otherwise valid
     // PDF — it needs a plain Uint8Array copy, not a Buffer instance (Buffer
     // subclasses Uint8Array, which isn't the same thing to it internally).
-    const result = await pdfParse(new Uint8Array(buffer));
+    const result = await withTimeout(
+      pdfParse(new Uint8Array(buffer)) as Promise<{ text: string }>,
+      EXTRACTION_TIMEOUT_MS,
+      "Parsing this PDF took too long — it may be corrupted, password-protected, or in an unusual format."
+    );
     return result.text;
   }
   if (isDocx) {
-    const result = await mammoth.extractRawText({ buffer });
+    const result = await withTimeout(
+      mammoth.extractRawText({ buffer }),
+      EXTRACTION_TIMEOUT_MS,
+      "Parsing this Word document took too long — it may be corrupted or in an unusual format."
+    );
     return result.value;
   }
   throw new Error("Only PDF and .docx CVs are supported (legacy .doc files aren't).");
