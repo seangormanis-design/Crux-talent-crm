@@ -1,4 +1,9 @@
-import express from "express";
+// Must be the very first import: patches Express 4's router methods so a
+// rejected promise from an async route handler is forwarded to the error
+// middleware below, instead of silently hanging the request forever (see
+// the global error handler's comment for why this matters).
+import "express-async-errors";
+import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import path from "path";
@@ -31,6 +36,19 @@ export function buildApp() {
   app.use(express.json());
   app.use(cookieParser());
 
+  // Minimal request logging — this app had none at all, which meant a
+  // hung/failed request was invisible in `docker logs` no matter what
+  // caused it. Logs on completion (not just entry) so the duration itself
+  // is diagnostic: a request that never logs its completion line is one
+  // that's still hanging.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const start = Date.now();
+    res.on("finish", () => {
+      console.log(`${req.method} ${req.originalUrl} -> ${res.statusCode} (${Date.now() - start}ms)`);
+    });
+    next();
+  });
+
   app.get("/health", (_req, res) => res.json({ ok: true }));
 
   app.use("/api/auth", authRouter);
@@ -58,6 +76,19 @@ export function buildApp() {
   if (process.env.STORAGE_DRIVER !== "s3") {
     app.use("/files", requireAuth, express.static(path.resolve(process.env.STORAGE_LOCAL_PATH ?? "./storage")));
   }
+
+  // Catch-all: with express-async-errors patched in above, any error thrown
+  // or rejected anywhere in a route handler (most of which have no try/catch
+  // of their own around their Prisma/storage calls) lands here instead of
+  // leaving the request hanging with no response ever sent — which is what
+  // "nothing happens, no error" looks like from the browser. Logged with the
+  // request-logging middleware's completion line still firing right after,
+  // so a failure is now always visible in both the response and the logs.
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+    console.error(`Unhandled error on ${req.method} ${req.originalUrl}:`, err);
+    if (res.headersSent) return;
+    res.status(500).json({ error: err instanceof Error ? err.message : "Something went wrong. Please try again." });
+  });
 
   return app;
 }

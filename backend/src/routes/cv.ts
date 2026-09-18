@@ -24,7 +24,12 @@ cvRouter.post("/parse", upload.single("file"), async (req, res) => {
     return res.status(422).json({ error: "Could not read any text from that file — it may be a scanned image." });
   }
 
-  const knownSkills = await prisma.skill.findMany();
+  let knownSkills;
+  try {
+    knownSkills = await prisma.skill.findMany();
+  } catch (err) {
+    return res.status(502).json({ error: "Could not reach the database to check known skills. Please try again." });
+  }
   const extracted = extractCvFields(text, knownSkills.map((s) => s.name));
 
   const confirmedSkills = knownSkills.filter((s) => extracted.confirmedSkillNames.includes(s.name));
