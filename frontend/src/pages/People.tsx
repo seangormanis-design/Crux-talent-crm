@@ -706,6 +706,8 @@ export function PersonDetail() {
   const [interactionJobId, setInteractionJobId] = useState("");
   const [interactionCompanyId, setInteractionCompanyId] = useState("");
   const [interactionFollowUpAt, setInteractionFollowUpAt] = useState("");
+  const [loggingInteraction, setLoggingInteraction] = useState(false);
+  const [logInteractionError, setLogInteractionError] = useState<string | null>(null);
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [showPromoteForm, setShowPromoteForm] = useState(false);
@@ -745,22 +747,30 @@ export function PersonDetail() {
     e.preventDefault();
     const notes =
       interactionType === "QUALIFICATION_CALL" ? buildQualificationCallNotes(qualificationSections) : note;
-    await api.post("/api/interactions", {
-      personId: id,
-      type: interactionType,
-      notes,
-      jobId: interactionJobId || undefined,
-      companyId: interactionCompanyId || undefined,
-      ...(interactionType === "QUALIFICATION_CALL" && transcript.trim() ? { transcript: transcript.trim() } : {}),
-      // Only send followUpAt if the user actually touched it — omitting the
-      // key means "leave the existing reminder alone" on the backend.
-      ...(interactionFollowUpAt ? { followUpAt: interactionFollowUpAt } : {}),
-    });
-    setNote("");
-    setQualificationSections({});
-    setTranscript("");
-    setInteractionFollowUpAt("");
-    load();
+    setLoggingInteraction(true);
+    setLogInteractionError(null);
+    try {
+      await api.post("/api/interactions", {
+        personId: id,
+        type: interactionType,
+        notes,
+        jobId: interactionJobId || undefined,
+        companyId: interactionCompanyId || undefined,
+        ...(interactionType === "QUALIFICATION_CALL" && transcript.trim() ? { transcript: transcript.trim() } : {}),
+        // Only send followUpAt if the user actually touched it — omitting the
+        // key means "leave the existing reminder alone" on the backend.
+        ...(interactionFollowUpAt ? { followUpAt: interactionFollowUpAt } : {}),
+      });
+      setNote("");
+      setQualificationSections({});
+      setTranscript("");
+      setInteractionFollowUpAt("");
+      load();
+    } catch (err) {
+      setLogInteractionError(err instanceof Error ? err.message : "Could not save this interaction");
+    } finally {
+      setLoggingInteraction(false);
+    }
   }
 
   function onTranscriptFile(file: File) {
@@ -1297,8 +1307,15 @@ export function PersonDetail() {
                 onChange={(e) => setInteractionFollowUpAt(e.target.value)}
               />
             </label>
-            <button className="rounded bg-slate-900 px-4 py-2 text-sm text-white">Log</button>
+            <button
+              type="submit"
+              disabled={loggingInteraction}
+              className="rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {loggingInteraction ? "Logging..." : "Log"}
+            </button>
           </div>
+          {logInteractionError && <p className="text-sm text-red-600">{logInteractionError}</p>}
         </form>
       </section>
 

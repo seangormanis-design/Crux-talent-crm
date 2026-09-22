@@ -33,7 +33,13 @@ export function buildApp() {
   const app = express();
 
   app.use(cors({ origin: process.env.CORS_ORIGIN ?? "http://localhost:5173", credentials: true }));
-  app.use(express.json());
+  // express.json()'s default 100kb limit is easily exceeded by a pasted call
+  // transcript (a real Teams transcript with per-line speaker/timestamp
+  // formatting routinely runs to several hundred KB) — a body over that
+  // limit gets rejected before the route handler ever runs, and with no
+  // matching try/catch on the frontend call site, that failure was
+  // completely invisible to the user.
+  app.use(express.json({ limit: "10mb" }));
   app.use(cookieParser());
 
   // Minimal request logging — this app had none at all, which meant a
