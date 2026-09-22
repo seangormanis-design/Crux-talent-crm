@@ -6,6 +6,11 @@ interface SkillRef {
   name: string;
 }
 
+interface CompanyMatchSuggestion {
+  id: string;
+  name: string;
+}
+
 // Shorter than the api client's generous 60s default — a CV parse should
 // never legitimately take this long, so a genuine hang surfaces as a clear
 // error well inside the ~30s a person will actually wait before giving up
@@ -19,6 +24,7 @@ interface ExtractedFields {
   phone?: string;
   currentTitle?: string;
   currentEmployerName?: string;
+  employerMatchSuggestion?: CompanyMatchSuggestion | null;
   skills: SkillRef[];
   suggestedSkills: SkillRef[];
 }
@@ -53,6 +59,7 @@ export default function CvReviewPanel({
   const [allSkillOptions, setAllSkillOptions] = useState<SkillRef[]>([]);
   const [suggestedSkillOptions, setSuggestedSkillOptions] = useState<SkillRef[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
+  const [employerMatchSuggestion, setEmployerMatchSuggestion] = useState<CompanyMatchSuggestion | null>(null);
 
   // A ticking counter while parsing is in flight — see CvDropCreatePanel's
   // identical comment: turns a silent wait into visible, verifiable
@@ -93,6 +100,7 @@ export default function CvReviewPanel({
         setAllSkillOptions(Array.from(union.values()));
         setSelectedSkillIds(new Set(union.keys()));
         setSuggestedSkillOptions(extracted.suggestedSkills.filter((s) => !union.has(s.id)));
+        setEmployerMatchSuggestion(extracted.employerMatchSuggestion ?? null);
       } catch (err) {
         console.error("[CvReviewPanel] parse failed:", err);
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not parse that CV");
@@ -180,7 +188,16 @@ export default function CvReviewPanel({
             <ReviewField
               label="Current employer"
               value={form.currentEmployerName}
-              onChange={(v) => setForm({ ...form, currentEmployerName: v })}
+              onChange={(v) => {
+                setForm({ ...form, currentEmployerName: v });
+                setEmployerMatchSuggestion(null);
+              }}
+              suggestion={employerMatchSuggestion}
+              onUseSuggestion={(name) => {
+                setForm((f) => ({ ...f, currentEmployerName: name }));
+                setEmployerMatchSuggestion(null);
+              }}
+              onDismissSuggestion={() => setEmployerMatchSuggestion(null)}
             />
           </div>
 
@@ -235,11 +252,40 @@ export default function CvReviewPanel({
   );
 }
 
-function ReviewField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ReviewField({
+  label,
+  value,
+  onChange,
+  suggestion,
+  onUseSuggestion,
+  onDismissSuggestion,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  suggestion?: CompanyMatchSuggestion | null;
+  onUseSuggestion?: (name: string) => void;
+  onDismissSuggestion?: () => void;
+}) {
   return (
     <label className="block text-sm">
       <span className="mb-1 block text-slate-600">{label}</span>
       <input className="w-full rounded border px-3 py-2 text-sm" value={value} onChange={(e) => onChange(e.target.value)} />
+      {suggestion && (
+        <p className="mt-1 rounded border border-dashed border-amber-400 bg-amber-50 p-1.5 text-xs text-amber-700">
+          Did you mean the existing company "{suggestion.name}"?{" "}
+          <button
+            type="button"
+            className="font-medium text-blue-600 hover:underline"
+            onClick={() => onUseSuggestion?.(suggestion.name)}
+          >
+            Use this
+          </button>{" "}
+          <button type="button" className="text-slate-500 hover:underline" onClick={onDismissSuggestion}>
+            Keep as typed
+          </button>
+        </p>
+      )}
     </label>
   );
 }

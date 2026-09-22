@@ -2,6 +2,7 @@
 // (buffer: Buffer) => Promise<{ text: string }>.
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
+import { levenshtein } from "./textSimilarity";
 
 export interface ExtractedCvFields {
   firstName?: string;
@@ -85,13 +86,82 @@ function guessName(lines: string[]): { firstName?: string; surname?: string } {
   return {};
 }
 
-function guessTitleAndEmployer(text: string): { title?: string; employer?: string } {
-  // Common CV phrasing: "<Title> at <Company>" or "<Title>, <Company>" or
-  // "<Title> — <Company>" near the top of the document (current/most
-  // recent role usually appears first).
-  const candidateLines = text.split("\n").slice(0, 40);
+// If the CV has a recognizable "Experience"/"Work Experience"/"Employment
+// History" heading, only look at lines from there onward — the section is
+// specifically job history, so a "Title · Company" line found there is
+// trusted even without a trailing date. Outside such a section (or when no
+// heading is found at all), the same shape is common for a purely personal
+// tagline near the top of a CV (e.g. "Lead Consultant · Health Data
+// Platforms") which is *not* a job entry — see the dotMatch handling below
+// for how that risk is avoided.
+function findExperienceSectionStart(lines: string[]): number {
+  return lines.findIndex((l) => /^\s*(work\s+)?experience\b/i.test(l) || /^\s*employment\s+history\b/i.test(l));
+}
 
-  for (const line of candidateLines) {
+function guessTitleAndEmployer(text: string): { title?: string; employer?: string } {
+  const lines = text.split("\n");
+  const experienceStart = findExperienceSectionStart(lines);
+
+  // Inside a recognized Experience section, a CV lists jobs in reverse-
+  // chronological order — the FIRST "·" line found there is the current/
+  // most recent role, which is what we want, and later ones are past jobs
+  // (a multi-job CV can have several, all in the same shape). Return on the
+  // first match immediately, exactly like the "at"/dash patterns below.
+  if (experienceStart >= 0) {
+    for (const line of lines.slice(experienceStart, experienceStart + 60)) {
+      // A "·"-bulleted line is handled exclusively by the dot-parsing below
+      // — a trailing date range often contains its own "-"/"—" (e.g. "2021
+      // - Present"), which the dash pattern would otherwise greedily match
+      // across the whole line instead of stopping at the real title/company
+      // boundary.
+      if (line.includes("·")) {
+        const dotParts = line
+          .split("·")
+          .map((p) => p.trim())
+          .filter(Boolean);
+        if (dotParts.length >= 2 && dotParts[0].length >= 3 && dotParts[1].length >= 2) {
+          return { title: dotParts[0], employer: dotParts[1] };
+        }
+        continue;
+      }
+
+      const atMatch = line.match(/^(.{3,60}?)\s+at\s+(.{2,60})$/i);
+      if (atMatch) return { title: atMatch[1].trim(), employer: atMatch[2].trim() };
+
+      const dashMatch = line.match(/^(.{3,60}?)\s+[—-]\s+(.{2,60})$/);
+      if (dashMatch) return { title: dashMatch[1].trim(), employer: dashMatch[2].trim() };
+    }
+    return {};
+  }
+
+  // No Experience heading found — fall back to scanning the top of the
+  // document, same as before this section-aware path existed. The "·"
+  // shape is ambiguous here: a real job-history line ("Title · Company ·
+  // Dates") and a personal tagline right under the candidate's name ("Title
+  // · Subtitle") look identical when only two parts are present, and a
+  // tagline (if any) always appears before the real entry — so rather than
+  // return on the first "·" match, every candidate is collected and the
+  // *last* one is used instead, and a trailing segment that looks like a
+  // date range is required as confirmation this is really a job entry, not
+  // just any two-part sentence that happens to contain a "·".
+  let lastDotMatch: { title: string; employer: string } | null = null;
+
+  for (const line of lines.slice(0, 40)) {
+    if (line.includes("·")) {
+      const dotParts = line
+        .split("·")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (dotParts.length >= 3 && dotParts[0].length >= 3 && dotParts[1].length >= 2) {
+        const lastPart = dotParts[dotParts.length - 1];
+        const looksDated = /\b(19|20)\d{2}\b|\bpresent\b/i.test(lastPart);
+        if (looksDated) {
+          lastDotMatch = { title: dotParts[0], employer: dotParts[1] };
+        }
+      }
+      continue;
+    }
+
     const atMatch = line.match(/^(.{3,60}?)\s+at\s+(.{2,60})$/i);
     if (atMatch) return { title: atMatch[1].trim(), employer: atMatch[2].trim() };
 
@@ -99,7 +169,7 @@ function guessTitleAndEmployer(text: string): { title?: string; employer?: strin
     if (dashMatch) return { title: dashMatch[1].trim(), employer: dashMatch[2].trim() };
   }
 
-  return {};
+  return lastDotMatch ?? {};
 }
 
 // A handful of stable, unambiguous abbreviations that are core vocabulary in
@@ -129,18 +199,6 @@ function tokenize(s: string): string[] {
   return expandDomainAliases(s.toLowerCase())
     .match(/[a-z0-9]+/g)
     ?.filter((t) => !STOPWORDS.has(t)) ?? [];
-}
-
-function levenshtein(a: string, b: string): number {
-  const dp: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...new Array(b.length).fill(0)]);
-  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      dp[i][j] =
-        a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
-    }
-  }
-  return dp[a.length][b.length];
 }
 
 // A token "fuzzily appears" if it's an exact match, or within a small edit

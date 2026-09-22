@@ -14,6 +14,11 @@ interface SkillRef {
   name: string;
 }
 
+interface CompanyMatchSuggestion {
+  id: string;
+  name: string;
+}
+
 interface ExtractedFields {
   firstName?: string;
   surname?: string;
@@ -21,6 +26,7 @@ interface ExtractedFields {
   phone?: string;
   currentTitle?: string;
   currentEmployerName?: string;
+  employerMatchSuggestion?: CompanyMatchSuggestion | null;
   skills: SkillRef[];
   suggestedSkills: SkillRef[];
 }
@@ -42,6 +48,7 @@ export default function CvDropCreatePanel() {
   const [duplicateMatches, setDuplicateMatches] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [employerMatchSuggestion, setEmployerMatchSuggestion] = useState<CompanyMatchSuggestion | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -66,6 +73,7 @@ export default function CvDropCreatePanel() {
     setSelectedSkillIds(new Set());
     setDuplicateMatches(null);
     setError(null);
+    setEmployerMatchSuggestion(null);
   }
 
   async function handleFile(f: File) {
@@ -100,6 +108,7 @@ export default function CvDropCreatePanel() {
       setSelectedSkillIds(new Set(extracted.skills.map((s) => s.id)));
       const confirmedIds = new Set(extracted.skills.map((s) => s.id));
       setSuggestedSkillOptions(extracted.suggestedSkills.filter((s) => !confirmedIds.has(s.id)));
+      setEmployerMatchSuggestion(extracted.employerMatchSuggestion ?? null);
     } catch (err) {
       console.error("[CvDropCreatePanel] parse failed:", err);
       setError(err instanceof Error ? err.message : "Could not parse that CV");
@@ -283,8 +292,33 @@ export default function CvDropCreatePanel() {
               <input
                 className="w-full rounded border px-3 py-2 text-sm"
                 value={form.currentEmployerName}
-                onChange={(e) => setForm({ ...form, currentEmployerName: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, currentEmployerName: e.target.value });
+                  setEmployerMatchSuggestion(null);
+                }}
               />
+              {employerMatchSuggestion && (
+                <p className="mt-1 rounded border border-dashed border-amber-400 bg-amber-50 p-1.5 text-xs text-amber-700">
+                  Did you mean the existing company "{employerMatchSuggestion.name}"?{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-blue-600 hover:underline"
+                    onClick={() => {
+                      setForm((f) => ({ ...f, currentEmployerName: employerMatchSuggestion.name }));
+                      setEmployerMatchSuggestion(null);
+                    }}
+                  >
+                    Use this
+                  </button>{" "}
+                  <button
+                    type="button"
+                    className="text-slate-500 hover:underline"
+                    onClick={() => setEmployerMatchSuggestion(null)}
+                  >
+                    Keep as typed
+                  </button>
+                </p>
+              )}
             </label>
           </div>
 

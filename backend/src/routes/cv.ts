@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import { prisma } from "../lib/prisma";
 import { extractCvFields, extractTextFromCv } from "../lib/cvExtraction";
+import { findFuzzyCompanyMatch } from "../lib/companyResolution";
 
 export const cvRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -35,6 +36,12 @@ cvRouter.post("/parse", upload.single("file"), async (req, res) => {
   const confirmedSkills = knownSkills.filter((s) => extracted.confirmedSkillNames.includes(s.name));
   const suggestedSkills = knownSkills.filter((s) => extracted.suggestedSkillNames.includes(s.name));
 
+  // A fuzzy (typo-level) near-miss against an existing Company — not
+  // confident enough for resolveCompanyIdByName to auto-link when this
+  // gets saved, so it's surfaced here instead, while a human is actively
+  // reviewing the extracted fields, for them to confirm or dismiss.
+  const employerMatchSuggestion = await findFuzzyCompanyMatch(prisma, extracted.currentEmployerName);
+
   res.json({
     extracted: {
       firstName: extracted.firstName,
@@ -43,6 +50,7 @@ cvRouter.post("/parse", upload.single("file"), async (req, res) => {
       phone: extracted.phone,
       currentTitle: extracted.currentTitle,
       currentEmployerName: extracted.currentEmployerName,
+      employerMatchSuggestion,
       // Confident matches — pre-checked in the review form.
       skills: confirmedSkills.map((s) => ({ id: s.id, name: s.name })),
       // Near-matches (spacing/abbreviation variants, minor typos) — shown
