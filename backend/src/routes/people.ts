@@ -150,7 +150,7 @@ peopleRouter.get("/:id", async (req, res) => {
       documents: { include: { versions: true } },
       interactions: {
         orderBy: { occurredAt: "desc" },
-        include: { intelligence: true, reflection: { include: { feedback: true } } },
+        include: { intelligence: true, reflection: { include: { feedback: true } }, editedBy: { select: { name: true } } },
       },
       jobApplications: { include: { job: true } },
       company: true,
@@ -173,7 +173,7 @@ peopleRouter.get("/:id", async (req, res) => {
     const linkedInteractions = await prisma.interaction.findMany({
       where: { personId: linkedPerson.id },
       orderBy: { occurredAt: "desc" },
-      include: { intelligence: true, reflection: { include: { feedback: true } } },
+      include: { intelligence: true, reflection: { include: { feedback: true } }, editedBy: { select: { name: true } } },
     });
     combinedInteractions = [
       ...combinedInteractions,

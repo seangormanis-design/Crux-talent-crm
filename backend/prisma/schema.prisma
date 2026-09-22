@@ -19,7 +19,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  interactions Interaction[]
+  createdInteractions Interaction[] @relation("InteractionCreatedBy")
+  editedInteractions  Interaction[] @relation("InteractionEditedBy")
   stageChanges StageChange[]
   callProfile  UserCallProfile?
 
@@ -671,13 +672,38 @@ model Interaction {
   company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
   createdById String?
-  createdBy   User?   @relation(fields: [createdById], references: [id])
+  createdBy   User?   @relation("InteractionCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
+
+  // Set the first time this interaction is edited after creation (see
+  // PATCH /:id) — history stays append-only in spirit (nothing is silently
+  // rewritten without a trace); the UI shows an "(edited)" marker whenever
+  // editedAt is present rather than keeping full version history.
+  editedAt   DateTime?
+  editedById String?
+  editedBy   User?     @relation("InteractionEditedBy", fields: [editedById], references: [id])
 
   // Optional Teams call transcript, pasted or uploaded alongside the note —
   // when present, a call reflection is based on what was actually said, not
   // just what got written down.
   transcript String? @db.Text
+
+  // The 7-section Qualification Call template (Present/Past/Future/AOB/
+  // Threats/Leads/Personal info), stored as its own field per section — only
+  // ever populated for type QUALIFICATION_CALL, NULL for every other type
+  // and for QUALIFICATION_CALL rows logged before this existed. `notes`
+  // stays a server-computed concatenation of these 7 fields (same
+  // labeled-header format as before) purely so every existing consumer of
+  // notes — full-text search, Extract Intelligence, Reflect on Call, the
+  // plain interaction-history render — keeps working unchanged; nothing
+  // reads these 7 columns directly yet outside the extraction-review flow.
+  qcPresent      String? @db.Text
+  qcPast         String? @db.Text
+  qcFuture       String? @db.Text
+  qcAob          String? @db.Text
+  qcThreats      String? @db.Text
+  qcLeads        String? @db.Text
+  qcPersonalInfo String? @db.Text
 
   // Generated/indexed by the migration's raw SQL (STORED, from notes —
   // which already contains every Qualification Call section, concatenated

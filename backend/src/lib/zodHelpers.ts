@@ -14,3 +14,10 @@ export const optionalUrl = z.preprocess(blankToUndefined, z.string().url().optio
 // so blank maps to null here, not undefined.
 const blankToNull = (value: unknown) => (value === "" ? null : value);
 export const nullableDate = z.preprocess(blankToNull, z.coerce.date().nullable().optional());
+
+// Same blank-means-clear intent as nullableDate, for text fields on an
+// *edit* endpoint — e.g. PATCH /api/interactions/:id, where blanking out a
+// section textarea should actually clear it, not be indistinguishable from
+// never having touched it (which optionalString's blank-to-undefined would
+// do, appropriate for a create form's untouched-field case but wrong here).
+export const nullableString = z.preprocess(blankToNull, z.string().nullable().optional());

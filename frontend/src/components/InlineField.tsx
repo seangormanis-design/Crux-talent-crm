@@ -13,6 +13,8 @@ export default function InlineField({
   href,
   displayClassName = "",
   inputClassName = "",
+  multiline = false,
+  rows = 4,
 }: {
   value: string;
   /** Shown instead of `value` when not editing (e.g. a formatted date) — the raw `value` is still what the input edits. */
@@ -24,11 +26,15 @@ export default function InlineField({
   href?: string;
   displayClassName?: string;
   inputClassName?: string;
+  /** Renders a multi-line textarea instead of a single-line input — Enter inserts a newline rather than committing; blur or Escape behave the same either way. */
+  multiline?: boolean;
+  rows?: number;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!editing) setDraft(value ?? "");
@@ -48,6 +54,27 @@ export default function InlineField({
     } finally {
       setSaving(false);
     }
+  }
+
+  if (editing && multiline) {
+    return (
+      <textarea
+        ref={textareaRef}
+        autoFocus
+        rows={rows}
+        className={`w-full rounded border border-slate-400 px-2 py-1 text-sm outline-none ${inputClassName}`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setDraft(value ?? "");
+            setEditing(false);
+          }
+        }}
+      />
+    );
   }
 
   if (editing) {
@@ -79,7 +106,7 @@ export default function InlineField({
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className={`min-h-[1.75rem] flex-1 rounded px-2 py-1 text-left hover:bg-slate-100 ${displayClassName}`}
+        className={`min-h-[1.75rem] flex-1 whitespace-pre-wrap rounded px-2 py-1 text-left hover:bg-slate-100 ${displayClassName}`}
       >
         {value ? displayValue ?? value : <span className="text-slate-400">{placeholder}</span>}
       </button>

@@ -4,6 +4,8 @@ import { api } from "../api/client";
 import CvReviewPanel from "../components/CvReviewPanel";
 import DocumentPreviewPanel from "../components/DocumentPreviewPanel";
 import InlineField from "../components/InlineField";
+import QualificationExtractionReviewPanel from "../components/QualificationExtractionReviewPanel";
+import { QC_SECTION_FIELDS, QcSectionField } from "../lib/qualificationSections";
 import SkillPicker from "../components/SkillPicker";
 import RoleTypePicker from "../components/RoleTypePicker";
 import LinkPersonModal from "../components/LinkPersonModal";
@@ -506,34 +508,6 @@ function isOverdue(iso: string): boolean {
   return new Date(iso) < today;
 }
 
-// Guided template for Qualification Call notes — every section is optional
-// (leave anything blank that didn't come up) but gets its own text area so
-// nothing gets lost under the wrong heading. Stored as one concatenated,
-// clearly-labeled note (not seven separate fields) so it stays one coherent
-// record and still reads fine for Extract Intelligence.
-const QUALIFICATION_CALL_SECTIONS: { key: string; label: string; hint: string }[] = [
-  { key: "PRESENT", label: "Present", hint: "Thoughts, feelings, pulse" },
-  { key: "PAST", label: "Past", hint: "Experience, projects, skills, CV" },
-  { key: "FUTURE", label: "Future", hint: "Motivations, plans, desires, what matters most" },
-  { key: "AOB", label: "AOB", hint: "Salary, notice period, visa status" },
-  {
-    key: "THREATS",
-    label: "Threats",
-    hint: "Life-changing moments, other job offers, promotions, projects — anything that could derail a placement",
-  },
-  { key: "LEADS", label: "Leads", hint: "Names of other people worth targeting, market intel, company signals" },
-  { key: "PERSONAL_INFO", label: "Personal info", hint: "Hobbies, family, personal context worth remembering" },
-];
-
-function buildQualificationCallNotes(sections: Record<string, string>): string {
-  return QUALIFICATION_CALL_SECTIONS.map((s) => {
-    const text = sections[s.key]?.trim();
-    return text ? `${s.label.toUpperCase()}:\n${text}` : null;
-  })
-    .filter(Boolean)
-    .join("\n\n");
-}
-
 function IntelligenceSummary({
   intelligence,
   personId,
@@ -720,6 +694,23 @@ export function PersonDetail() {
   const [anonymizing, setAnonymizing] = useState(false);
   const [pendingCvFile, setPendingCvFile] = useState<File | null>(null);
 
+  // Qualification Call auto-extraction review — set right after logging a
+  // new Qualification Call with a transcript already attached, or after
+  // attaching/re-extracting one on an existing interaction. Only one review
+  // panel is open at a time.
+  const [reviewingInteraction, setReviewingInteraction] = useState<{
+    id: string;
+    transcript: string;
+    existingSections: Partial<Record<QcSectionField, string>>;
+  } | null>(null);
+
+  // "Attach transcript" (Feature 2's second trigger point — wiring up the
+  // previously-unused POST /:id/transcript) — only one row's form open at a time.
+  const [attachingTranscriptId, setAttachingTranscriptId] = useState<string | null>(null);
+  const [attachTranscriptDraft, setAttachTranscriptDraft] = useState("");
+  const [attachingTranscript, setAttachingTranscript] = useState(false);
+  const [attachTranscriptError, setAttachTranscriptError] = useState<string | null>(null);
+
   function load() {
     api.get(`/api/people/${id}`).then((p: any) => {
       setPerson(p);
@@ -746,18 +737,23 @@ export function PersonDetail() {
 
   async function logInteraction(e: FormEvent) {
     e.preventDefault();
-    const notes =
-      interactionType === "QUALIFICATION_CALL" ? buildQualificationCallNotes(qualificationSections) : note;
+    // notes is no longer built here for a Qualification Call — the backend
+    // computes it server-side from the 7 qc* fields (see interactions.ts),
+    // so the single source of truth for that concatenation lives in one
+    // place instead of being trusted from whatever the client assembled.
+    const trimmedTranscript = transcript.trim();
+    const loggedType = interactionType;
+    const loggedSections = { ...qualificationSections };
     setLoggingInteraction(true);
     setLogInteractionError(null);
     try {
-      await api.post("/api/interactions", {
+      const created = await api.post<{ id: string }>("/api/interactions", {
         personId: id,
         type: interactionType,
-        notes,
+        ...(interactionType === "QUALIFICATION_CALL" ? qualificationSections : { notes: note }),
         jobId: interactionJobId || undefined,
         companyId: interactionCompanyId || undefined,
-        ...(interactionType === "QUALIFICATION_CALL" && transcript.trim() ? { transcript: transcript.trim() } : {}),
+        ...(interactionType === "QUALIFICATION_CALL" && trimmedTranscript ? { transcript: trimmedTranscript } : {}),
         // Only send followUpAt if the user actually touched it — omitting the
         // key means "leave the existing reminder alone" on the backend.
         ...(interactionFollowUpAt ? { followUpAt: interactionFollowUpAt } : {}),
@@ -767,6 +763,10 @@ export function PersonDetail() {
       setTranscript("");
       setInteractionFollowUpAt("");
       load();
+      // Trigger point 1: a transcript was already attached at creation time.
+      if (loggedType === "QUALIFICATION_CALL" && trimmedTranscript) {
+        setReviewingInteraction({ id: created.id, transcript: trimmedTranscript, existingSections: loggedSections });
+      }
     } catch (err) {
       setLogInteractionError(err instanceof Error ? err.message : "Could not save this interaction");
     } finally {
@@ -787,6 +787,57 @@ export function PersonDetail() {
       else next.add(interactionId);
       return next;
     });
+  }
+
+  function existingQcSections(i: any): Partial<Record<QcSectionField, string>> {
+    return {
+      qcPresent: i.qcPresent ?? "",
+      qcPast: i.qcPast ?? "",
+      qcFuture: i.qcFuture ?? "",
+      qcAob: i.qcAob ?? "",
+      qcThreats: i.qcThreats ?? "",
+      qcLeads: i.qcLeads ?? "",
+      qcPersonalInfo: i.qcPersonalInfo ?? "",
+    };
+  }
+
+  function openExtractionReview(i: any) {
+    setReviewingInteraction({ id: i.id, transcript: i.transcript ?? "", existingSections: existingQcSections(i) });
+  }
+
+  function onAttachTranscriptFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => setAttachTranscriptDraft(String(reader.result ?? ""));
+    reader.readAsText(file);
+  }
+
+  // Trigger point 2: a transcript arriving after the call was already
+  // logged (POST /:id/transcript, previously unused from the frontend) —
+  // attaching it also opens the same extraction review as trigger point 1.
+  async function attachTranscript(i: any) {
+    const trimmed = attachTranscriptDraft.trim();
+    if (!trimmed) return;
+    setAttachingTranscript(true);
+    setAttachTranscriptError(null);
+    try {
+      await api.post(`/api/interactions/${i.id}/transcript`, { transcript: trimmed });
+      setAttachingTranscriptId(null);
+      setAttachTranscriptDraft("");
+      load();
+      openExtractionReview({ ...i, transcript: trimmed });
+    } catch (err) {
+      setAttachTranscriptError(err instanceof Error ? err.message : "Could not attach transcript");
+    } finally {
+      setAttachingTranscript(false);
+    }
+  }
+
+  // Feature 3: edit-after-save for notes/sections/transcript — the one
+  // deliberate, tracked exception to interactions being append-only (see
+  // PATCH /:id's comment). An empty saved value clears that field.
+  async function patchInteraction(interactionId: string, fields: Record<string, string | null>) {
+    await api.patch(`/api/interactions/${interactionId}`, fields);
+    load();
   }
 
   async function runExtractIntelligence(interactionId: string) {
@@ -1165,27 +1216,151 @@ export function PersonDetail() {
         {extractError && <p className="mb-2 text-sm text-red-600">{extractError}</p>}
         {reflectError && <p className="mb-2 text-sm text-red-600">{reflectError}</p>}
         <ul className="space-y-1 text-sm">
-          {(person.combinedInteractions ?? person.interactions)?.map((i: any) => (
+          {(person.combinedInteractions ?? person.interactions)?.map((i: any) => {
+            const hasQcSections = QC_SECTION_FIELDS.some((s) => i[s.field]?.trim());
+            return (
             <li key={i.id} className="rounded border bg-white p-2">
               <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
-              {i.type.replaceAll("_", " ")} — <span className="whitespace-pre-wrap">{i.notes}</span>
-              {i.transcript && (
-                <button
-                  type="button"
-                  onClick={() => toggleTranscriptExpanded(i.id)}
-                  className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600 hover:bg-slate-300"
+              {i.type.replaceAll("_", " ")}
+              {i.editedAt && (
+                <span
+                  className="ml-1 text-xs italic text-slate-400"
+                  title={`Edited ${new Date(i.editedAt).toLocaleString()}${i.editedBy?.name ? ` by ${i.editedBy.name}` : ""}`}
                 >
-                  {expandedTranscriptIds.has(i.id) ? "hide transcript" : "transcript attached"}
-                </button>
-              )}
-              {i.transcript && expandedTranscriptIds.has(i.id) && (
-                <p className="mt-1 whitespace-pre-wrap rounded bg-slate-50 p-2 text-xs text-slate-600">{i.transcript}</p>
+                  (edited)
+                </span>
               )}
               {person.linkedPerson && i.sourcePersonId === person.linkedPerson.id && (
                 <RecordTypeBadge kind={personRecordKind(person.linkedPerson)} className="ml-2">
                   via {fullName(person.linkedPerson)}
                 </RecordTypeBadge>
               )}
+
+              {hasQcSections ? (
+                <div className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {QC_SECTION_FIELDS.map((s) => (
+                    <label key={s.field} className="block">
+                      <span className="mb-0.5 block text-xs font-medium uppercase text-slate-500">{s.label}</span>
+                      <InlineField
+                        value={i[s.field] ?? ""}
+                        placeholder="—"
+                        multiline
+                        rows={2}
+                        onSave={(v) => patchInteraction(i.id, { [s.field]: v })}
+                      />
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-1">
+                  <InlineField
+                    value={i.notes ?? ""}
+                    placeholder="No notes"
+                    multiline
+                    rows={3}
+                    onSave={(v) => patchInteraction(i.id, { notes: v })}
+                  />
+                </div>
+              )}
+
+              <div className="mt-1">
+                {i.transcript ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => toggleTranscriptExpanded(i.id)}
+                      className="rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600 hover:bg-slate-300"
+                    >
+                      {expandedTranscriptIds.has(i.id) ? "hide transcript" : "transcript attached"}
+                    </button>
+                    {i.type === "QUALIFICATION_CALL" && (
+                      <button
+                        type="button"
+                        onClick={() => openExtractionReview(i)}
+                        className="ml-2 text-xs text-blue-600 hover:underline"
+                      >
+                        Re-extract sections
+                      </button>
+                    )}
+                    {expandedTranscriptIds.has(i.id) && (
+                      <div className="mt-1 rounded bg-slate-50 p-2">
+                        <InlineField
+                          value={i.transcript}
+                          placeholder="—"
+                          multiline
+                          rows={6}
+                          displayClassName="text-xs text-slate-600"
+                          inputClassName="text-xs"
+                          onSave={(v) => patchInteraction(i.id, { transcript: v })}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  i.type === "QUALIFICATION_CALL" &&
+                  (attachingTranscriptId === i.id ? (
+                    <div className="rounded bg-slate-50 p-2">
+                      <textarea
+                        className="w-full rounded border px-2 py-1.5 text-xs"
+                        rows={3}
+                        placeholder="Paste transcript text here"
+                        value={attachTranscriptDraft}
+                        onChange={(e) => setAttachTranscriptDraft(e.target.value)}
+                      />
+                      <input
+                        type="file"
+                        accept=".txt,.vtt"
+                        className="mt-1 text-xs"
+                        onChange={(e) => e.target.files?.[0] && onAttachTranscriptFile(e.target.files[0])}
+                      />
+                      {attachTranscriptError && <p className="mt-1 text-xs text-red-600">{attachTranscriptError}</p>}
+                      <div className="mt-1 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAttachingTranscriptId(null);
+                            setAttachTranscriptDraft("");
+                            setAttachTranscriptError(null);
+                          }}
+                          className="rounded border px-2 py-1 text-xs hover:bg-white"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={attachingTranscript || !attachTranscriptDraft.trim()}
+                          onClick={() => attachTranscript(i)}
+                          className="rounded bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50"
+                        >
+                          {attachingTranscript ? "Attaching..." : "Attach & extract"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAttachingTranscriptId(i.id)}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Attach transcript
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {reviewingInteraction && reviewingInteraction.id === i.id && (
+                <QualificationExtractionReviewPanel
+                  interactionId={reviewingInteraction.id}
+                  transcript={reviewingInteraction.transcript}
+                  existingSections={reviewingInteraction.existingSections}
+                  onDone={() => {
+                    setReviewingInteraction(null);
+                    load();
+                  }}
+                  onDismiss={() => setReviewingInteraction(null)}
+                />
+              )}
+
               {i.notes?.trim() && (
                 <div>
                   {i.intelligence && (
@@ -1219,7 +1394,8 @@ export function PersonDetail() {
                 </div>
               )}
             </li>
-          ))}
+            );
+          })}
           {!(person.combinedInteractions ?? person.interactions)?.length && (
             <li className="text-slate-400">None yet</li>
           )}
@@ -1273,16 +1449,16 @@ export function PersonDetail() {
           </div>
           {interactionType === "QUALIFICATION_CALL" ? (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {QUALIFICATION_CALL_SECTIONS.map((s) => (
-                <label key={s.key} className="block text-sm">
+              {QC_SECTION_FIELDS.map((s) => (
+                <label key={s.field} className="block text-sm">
                   <span className="mb-0.5 block text-xs font-medium uppercase text-slate-500">{s.label}</span>
                   <span className="mb-1 block text-xs text-slate-400">{s.hint}</span>
                   <textarea
                     className="w-full rounded border px-3 py-2 text-sm"
                     placeholder="Leave blank if it didn't come up"
                     rows={3}
-                    value={qualificationSections[s.key] ?? ""}
-                    onChange={(e) => setQualificationSections((prev) => ({ ...prev, [s.key]: e.target.value }))}
+                    value={qualificationSections[s.field] ?? ""}
+                    onChange={(e) => setQualificationSections((prev) => ({ ...prev, [s.field]: e.target.value }))}
                   />
                 </label>
               ))}

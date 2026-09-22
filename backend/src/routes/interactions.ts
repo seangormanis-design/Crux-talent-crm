@@ -2,8 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { AuthenticatedRequest } from "../middleware/requireAuth";
-import { optionalString } from "../lib/zodHelpers";
+import { optionalString, nullableString } from "../lib/zodHelpers";
 import { extractIntelligence } from "../lib/intelligenceExtraction";
+import { extractQualificationSections } from "../lib/qualificationExtraction";
+import { buildQualificationCallNotes } from "../lib/qualificationSections";
 import { guessSkills } from "../lib/cvExtraction";
 import { reflectOnCall, refreshCallProfileIfDue } from "../lib/callReflection";
 import { fullName } from "../lib/personName";
@@ -41,6 +43,17 @@ const interactionSchema = z
     jobId: z.string().uuid().optional(),
     companyId: z.string().uuid().optional(),
     notes: z.string().optional(),
+    // The 7-section Qualification Call template — only meaningful when
+    // type is QUALIFICATION_CALL. `notes` is computed server-side from
+    // these (see the POST handler) rather than trusted from the client,
+    // so a raw `notes` sent alongside these for that type is ignored.
+    qcPresent: optionalString,
+    qcPast: optionalString,
+    qcFuture: optionalString,
+    qcAob: optionalString,
+    qcThreats: optionalString,
+    qcLeads: optionalString,
+    qcPersonalInfo: optionalString,
     // Optional Teams call transcript, pasted or uploaded at log time — can
     // also be attached later via POST /:id/transcript once it becomes available.
     transcript: optionalString,
@@ -67,25 +80,46 @@ interactionsRouter.get("/", async (req, res) => {
       jobId: jobId ? String(jobId) : undefined,
       companyId: companyId ? String(companyId) : undefined,
     },
-    include: { person: true, targetContact: true, job: true, company: true },
+    include: { person: true, targetContact: true, job: true, company: true, editedBy: { select: { name: true } } },
     orderBy: { occurredAt: "desc" },
   });
 
   res.json(interactions);
 });
 
-// Interactions are append-only: there is no PATCH/DELETE route. Log a
-// follow-up interaction instead of editing history.
+// Interactions were originally fully append-only; PATCH /:id below is now
+// the one deliberate, tracked exception (see its comment) — there is still
+// no DELETE route.
 interactionsRouter.post("/", async (req: AuthenticatedRequest, res) => {
   const parsed = interactionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { followUpAt, followUpNote, ...interactionFields } = parsed.data;
+  const {
+    followUpAt,
+    followUpNote,
+    notes: rawNotes,
+    qcPresent,
+    qcPast,
+    qcFuture,
+    qcAob,
+    qcThreats,
+    qcLeads,
+    qcPersonalInfo,
+    ...interactionFields
+  } = parsed.data;
   const settingFollowUp = followUpAt !== undefined && !!parsed.data.personId;
+
+  const qcFields = { qcPresent, qcPast, qcFuture, qcAob, qcThreats, qcLeads, qcPersonalInfo };
+  // notes is a server-computed concatenation of the 7 sections for a
+  // Qualification Call — the single source of truth moved off the client so
+  // every existing consumer of notes (search, Extract Intelligence, Reflect
+  // on Call) keeps working unchanged without trusting the frontend to have
+  // assembled it correctly.
+  const notes = interactionFields.type === "QUALIFICATION_CALL" ? buildQualificationCallNotes(qcFields) : rawNotes;
 
   const [interaction] = await prisma.$transaction([
     prisma.interaction.create({
-      data: { ...interactionFields, createdById: req.userId },
+      data: { ...interactionFields, notes, ...qcFields, createdById: req.userId },
     }),
     ...(settingFollowUp
       ? [prisma.person.update({ where: { id: parsed.data.personId! }, data: { followUpAt, followUpNote } })]
@@ -153,6 +187,45 @@ interactionsRouter.get("/:id/intelligence", async (req, res) => {
     where: { interactionId: req.params.id },
   });
   res.json(intelligence);
+});
+
+// Drafts all 7 Qualification Call sections from the attached transcript via
+// the Anthropic API — never writes to the database (same idiom as CV
+// parsing/Extract Intelligence's suggestions). The frontend shows this
+// alongside whatever's already in each section and the user decides what to
+// keep/edit/combine before an explicit PATCH /:id actually saves anything.
+interactionsRouter.post("/:id/extract-qualification-sections", async (req, res) => {
+  const interaction = await prisma.interaction.findUnique({
+    where: { id: req.params.id },
+    include: { person: true, targetContact: true },
+  });
+  if (!interaction) return res.status(404).json({ error: "Interaction not found" });
+  if (interaction.type !== "QUALIFICATION_CALL") {
+    return res.status(400).json({ error: "Only Qualification Call interactions have sections to draft" });
+  }
+  if (!interaction.transcript?.trim()) {
+    return res.status(400).json({ error: "This interaction has no transcript to extract from" });
+  }
+
+  const contact = contactNameAndType(interaction);
+  try {
+    const drafted = await extractQualificationSections({
+      personName: contact.name,
+      transcript: interaction.transcript,
+      existingSections: {
+        qcPresent: interaction.qcPresent,
+        qcPast: interaction.qcPast,
+        qcFuture: interaction.qcFuture,
+        qcAob: interaction.qcAob,
+        qcThreats: interaction.qcThreats,
+        qcLeads: interaction.qcLeads,
+        qcPersonalInfo: interaction.qcPersonalInfo,
+      },
+    });
+    res.json(drafted);
+  } catch (err) {
+    res.status(502).json({ error: err instanceof Error ? err.message : "Extraction failed" });
+  }
 });
 
 const transcriptSchema = z.object({ transcript: z.string().min(1) });
@@ -245,4 +318,74 @@ interactionsRouter.post("/:id/reflection/feedback", async (req: AuthenticatedReq
   if (req.userId) await refreshCallProfileIfDue(prisma, req.userId);
 
   res.json(feedback);
+});
+
+const interactionUpdateSchema = z.object({
+  notes: nullableString,
+  transcript: nullableString,
+  qcPresent: nullableString,
+  qcPast: nullableString,
+  qcFuture: nullableString,
+  qcAob: nullableString,
+  qcThreats: nullableString,
+  qcLeads: nullableString,
+  qcPersonalInfo: nullableString,
+});
+
+// The one deliberate, tracked exception to "append-only": lets a typo or
+// missing detail be fixed after the fact instead of only ever being
+// addable via a new follow-up interaction, while still leaving a visible
+// trace (editedAt/editedById, shown as an "(edited)" marker) rather than
+// silently rewriting history with no record it happened. Only the
+// human-authored content fields are editable here — type/personId/
+// company/job links are not: changing those means "this was logged
+// against the wrong record", which isn't what this endpoint is for.
+// A blank ("") value clears that field (nullableString); an omitted key
+// leaves it unchanged.
+interactionsRouter.patch("/:id", async (req: AuthenticatedRequest, res) => {
+  const parsed = interactionUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const existing = await prisma.interaction.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: "Interaction not found" });
+
+  const { notes, transcript, qcPresent, qcPast, qcFuture, qcAob, qcThreats, qcLeads, qcPersonalInfo } = parsed.data;
+
+  // For a Qualification Call, notes stays a server-computed concatenation
+  // of the 7 sections (see POST /) — recomputed here from whichever
+  // sections this request changed, falling back to the existing value for
+  // any section left untouched, so a PATCH that only edits e.g. the
+  // transcript still leaves notes internally consistent.
+  const resolvedNotes =
+    existing.type === "QUALIFICATION_CALL"
+      ? buildQualificationCallNotes({
+          qcPresent: qcPresent !== undefined ? qcPresent : existing.qcPresent,
+          qcPast: qcPast !== undefined ? qcPast : existing.qcPast,
+          qcFuture: qcFuture !== undefined ? qcFuture : existing.qcFuture,
+          qcAob: qcAob !== undefined ? qcAob : existing.qcAob,
+          qcThreats: qcThreats !== undefined ? qcThreats : existing.qcThreats,
+          qcLeads: qcLeads !== undefined ? qcLeads : existing.qcLeads,
+          qcPersonalInfo: qcPersonalInfo !== undefined ? qcPersonalInfo : existing.qcPersonalInfo,
+        })
+      : notes;
+
+  const interaction = await prisma.interaction.update({
+    where: { id: req.params.id },
+    data: {
+      notes: resolvedNotes,
+      transcript,
+      qcPresent,
+      qcPast,
+      qcFuture,
+      qcAob,
+      qcThreats,
+      qcLeads,
+      qcPersonalInfo,
+      editedAt: new Date(),
+      editedById: req.userId,
+    },
+    include: { editedBy: { select: { name: true } } },
+  });
+
+  res.json(interaction);
 });
