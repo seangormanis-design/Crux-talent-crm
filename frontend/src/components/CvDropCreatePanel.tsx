@@ -1,7 +1,13 @@
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import DuplicateWarningModal from "./DuplicateWarningModal";
+
+// Shorter than the api client's generous 60s default — a CV parse should
+// never legitimately take this long, so a genuine hang surfaces as a clear
+// error well inside the ~30s a person will actually wait before giving up
+// and concluding "nothing happened", rather than staying silent past it.
+const CV_PARSE_TIMEOUT_MS = 25000;
 
 interface SkillRef {
   id: string;
@@ -35,8 +41,22 @@ export default function CvDropCreatePanel() {
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [duplicateMatches, setDuplicateMatches] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  // A ticking counter while parsing is in flight — turns "nothing appears to
+  // be happening" into visible, verifiable progress: if this is still
+  // ticking past a few seconds, the request genuinely went out and is
+  // waiting on the backend; if it never starts counting at all, the drop/
+  // click never registered in the first place. Either way it's now visible
+  // on the page itself, no DevTools required.
+  useEffect(() => {
+    if (!parsing) return;
+    setElapsedSeconds(0);
+    const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [parsing]);
 
   function reset() {
     setFile(null);
@@ -49,6 +69,7 @@ export default function CvDropCreatePanel() {
   }
 
   async function handleFile(f: File) {
+    console.log("[CvDropCreatePanel] file received:", f.name, f.size, "bytes");
     setError(null);
     const lower = f.name.toLowerCase();
     if (!lower.endsWith(".pdf") && !lower.endsWith(".docx")) {
@@ -60,7 +81,13 @@ export default function CvDropCreatePanel() {
     try {
       const formData = new FormData();
       formData.append("file", f);
-      const { extracted } = await api.post<{ extracted: ExtractedFields }>("/api/cv/parse", formData);
+      console.log("[CvDropCreatePanel] sending to /api/cv/parse...");
+      const { extracted } = await api.post<{ extracted: ExtractedFields }>(
+        "/api/cv/parse",
+        formData,
+        CV_PARSE_TIMEOUT_MS
+      );
+      console.log("[CvDropCreatePanel] parse succeeded");
       setForm({
         firstName: extracted.firstName ?? "",
         surname: extracted.surname ?? "",
@@ -74,6 +101,7 @@ export default function CvDropCreatePanel() {
       const confirmedIds = new Set(extracted.skills.map((s) => s.id));
       setSuggestedSkillOptions(extracted.suggestedSkills.filter((s) => !confirmedIds.has(s.id)));
     } catch (err) {
+      console.error("[CvDropCreatePanel] parse failed:", err);
       setError(err instanceof Error ? err.message : "Could not parse that CV");
       setFile(null);
     } finally {
@@ -179,7 +207,15 @@ export default function CvDropCreatePanel() {
           }`}
         >
           {parsing ? (
-            <p>Parsing CV...</p>
+            <div>
+              <p>Parsing CV... ({elapsedSeconds}s)</p>
+              {elapsedSeconds >= 10 && (
+                <p className="mt-1 text-xs text-amber-600">
+                  This is taking longer than usual — it will show an error within{" "}
+                  {Math.max(0, Math.round(CV_PARSE_TIMEOUT_MS / 1000) - elapsedSeconds)}s if it doesn't finish.
+                </p>
+              )}
+            </div>
           ) : (
             <>
               <p className="font-medium text-slate-700">Drop a CV here</p>

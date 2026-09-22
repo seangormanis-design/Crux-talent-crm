@@ -6,6 +6,12 @@ interface SkillRef {
   name: string;
 }
 
+// Shorter than the api client's generous 60s default — a CV parse should
+// never legitimately take this long, so a genuine hang surfaces as a clear
+// error well inside the ~30s a person will actually wait before giving up
+// and concluding "nothing happened", rather than staying silent past it.
+const CV_PARSE_TIMEOUT_MS = 25000;
+
 interface ExtractedFields {
   firstName?: string;
   surname?: string;
@@ -42,20 +48,37 @@ export default function CvReviewPanel({
   const [parsing, setParsing] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [form, setForm] = useState(EMPTY_FORM);
   const [allSkillOptions, setAllSkillOptions] = useState<SkillRef[]>([]);
   const [suggestedSkillOptions, setSuggestedSkillOptions] = useState<SkillRef[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
 
+  // A ticking counter while parsing is in flight — see CvDropCreatePanel's
+  // identical comment: turns a silent wait into visible, verifiable
+  // progress instead of an indistinguishable-from-broken blank state.
+  useEffect(() => {
+    if (!parsing) return;
+    setElapsedSeconds(0);
+    const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [parsing]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      console.log("[CvReviewPanel] parsing", file.name, file.size, "bytes");
       setParsing(true);
       setError(null);
       try {
         const formData = new FormData();
         formData.append("file", file);
-        const { extracted } = await api.post<{ extracted: ExtractedFields }>("/api/cv/parse", formData);
+        const { extracted } = await api.post<{ extracted: ExtractedFields }>(
+          "/api/cv/parse",
+          formData,
+          CV_PARSE_TIMEOUT_MS
+        );
+        console.log("[CvReviewPanel] parse succeeded");
         if (cancelled) return;
         setForm({
           firstName: extracted.firstName ?? "",
@@ -71,6 +94,7 @@ export default function CvReviewPanel({
         setSelectedSkillIds(new Set(union.keys()));
         setSuggestedSkillOptions(extracted.suggestedSkills.filter((s) => !union.has(s.id)));
       } catch (err) {
+        console.error("[CvReviewPanel] parse failed:", err);
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not parse that CV");
       } finally {
         if (!cancelled) setParsing(false);
@@ -132,7 +156,15 @@ export default function CvReviewPanel({
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {parsing ? (
-        <p className="text-sm text-slate-500">Parsing...</p>
+        <div>
+          <p className="text-sm text-slate-500">Parsing... ({elapsedSeconds}s)</p>
+          {elapsedSeconds >= 10 && (
+            <p className="mt-1 text-xs text-amber-600">
+              This is taking longer than usual — it will show an error within{" "}
+              {Math.max(0, Math.round(CV_PARSE_TIMEOUT_MS / 1000) - elapsedSeconds)}s if it doesn't finish.
+            </p>
+          )}
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

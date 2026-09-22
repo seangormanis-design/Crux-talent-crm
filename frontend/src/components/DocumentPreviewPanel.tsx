@@ -118,12 +118,14 @@ export default function DocumentPreviewPanel({
   }, [selectedVersionId]);
 
   async function onUpload(file: File) {
+    console.log(`[DocumentPreviewPanel:${label}] file received:`, file.name, file.size, "bytes");
     const lower = file.name.toLowerCase();
     if (!lower.endsWith(".pdf") && !lower.endsWith(".docx")) {
       setUploadError("Only PDF and Word (.docx) files are supported.");
       return;
     }
     if (onFileSelected) {
+      console.log(`[DocumentPreviewPanel:${label}] handing off to parent review step`);
       onFileSelected(file);
       return;
     }
@@ -138,15 +140,17 @@ export default function DocumentPreviewPanel({
         if (personId) formData.append("personId", personId);
         if (jobId) formData.append("jobId", jobId);
         if (companyId) formData.append("companyId", companyId);
-        const created = await api.post<DocumentRecord>("/api/documents", formData);
+        const created = await api.post<DocumentRecord>("/api/documents", formData, 25000);
         onChange();
         setSelectedVersionId(created.versions[created.versions.length - 1]?.id ?? created.versions[0]?.id);
       } else {
-        const version = await api.post<DocumentVersion>(`/api/documents/${doc.id}/versions`, formData);
+        const version = await api.post<DocumentVersion>(`/api/documents/${doc.id}/versions`, formData, 25000);
         onChange();
         setSelectedVersionId(version.id);
       }
+      console.log(`[DocumentPreviewPanel:${label}] upload succeeded`);
     } catch (err) {
+      console.error(`[DocumentPreviewPanel:${label}] upload failed:`, err);
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
@@ -164,6 +168,7 @@ export default function DocumentPreviewPanel({
         e.preventDefault();
         setDragging(false);
         const dropped = e.dataTransfer.files?.[0];
+        console.log(`[DocumentPreviewPanel:${label}] drop event fired, file:`, dropped?.name ?? "(none)");
         if (dropped) onUpload(dropped);
       }}
       className={`rounded border bg-white p-4 transition-colors ${dragging ? "border-slate-900 bg-slate-50" : ""}`}
