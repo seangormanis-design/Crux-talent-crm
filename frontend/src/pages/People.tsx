@@ -713,6 +713,7 @@ export function PersonDetail() {
   const [showPromoteForm, setShowPromoteForm] = useState(false);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [expandedTranscriptIds, setExpandedTranscriptIds] = useState<Set<string>>(new Set());
   const [reflectingId, setReflectingId] = useState<string | null>(null);
   const [reflectError, setReflectError] = useState<string | null>(null);
   const [confirmingAnonymize, setConfirmingAnonymize] = useState(false);
@@ -777,6 +778,15 @@ export function PersonDetail() {
     const reader = new FileReader();
     reader.onload = () => setTranscript(String(reader.result ?? ""));
     reader.readAsText(file);
+  }
+
+  function toggleTranscriptExpanded(interactionId: string) {
+    setExpandedTranscriptIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(interactionId)) next.delete(interactionId);
+      else next.add(interactionId);
+      return next;
+    });
   }
 
   async function runExtractIntelligence(interactionId: string) {
@@ -1160,7 +1170,16 @@ export function PersonDetail() {
               <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
               {i.type.replaceAll("_", " ")} — <span className="whitespace-pre-wrap">{i.notes}</span>
               {i.transcript && (
-                <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">transcript attached</span>
+                <button
+                  type="button"
+                  onClick={() => toggleTranscriptExpanded(i.id)}
+                  className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600 hover:bg-slate-300"
+                >
+                  {expandedTranscriptIds.has(i.id) ? "hide transcript" : "transcript attached"}
+                </button>
+              )}
+              {i.transcript && expandedTranscriptIds.has(i.id) && (
+                <p className="mt-1 whitespace-pre-wrap rounded bg-slate-50 p-2 text-xs text-slate-600">{i.transcript}</p>
               )}
               {person.linkedPerson && i.sourcePersonId === person.linkedPerson.id && (
                 <RecordTypeBadge kind={personRecordKind(person.linkedPerson)} className="ml-2">
