@@ -22,6 +22,12 @@ export default function JobCreateForm({
 }) {
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [companyId, setCompanyId] = useState(initialCompanyId ?? "");
+  // Free-text alternative to picking an existing company — resolved
+  // server-side (exact/normalized match links an existing Company, no
+  // match creates a new one), same as Person's currentEmployerName. Wins
+  // over companyId when both are set, so filling this in doesn't require
+  // clearing the dropdown back to blank first.
+  const [companyName, setCompanyName] = useState("");
   const [title, setTitle] = useState("");
   // No default — the recruiter must actively pick A/B/C, never inherit one
   // silently, so nothing ends up unrated by accident.
@@ -36,20 +42,29 @@ export default function JobCreateForm({
     e.preventDefault();
     setCreating(true);
     try {
-      const job = await api.post<CreatedJob>("/api/jobs", { title, companyId, qualityRating });
+      const job = await api.post<CreatedJob>("/api/jobs", {
+        title,
+        companyId: companyId || undefined,
+        companyName: companyName.trim() || undefined,
+        qualityRating,
+      });
       onCreated(job);
     } finally {
       setCreating(false);
     }
   }
 
+  const hasCompany = !!(companyId || companyName.trim());
+
   return (
-    <form onSubmit={onSubmit} className="mb-4 flex gap-2 rounded border bg-white p-3">
+    <form onSubmit={onSubmit} className="mb-4 flex flex-wrap items-center gap-2 rounded border bg-white p-3">
       <select
         className="rounded border px-2 py-2 text-sm"
         value={companyId}
-        onChange={(e) => setCompanyId(e.target.value)}
-        required
+        onChange={(e) => {
+          setCompanyId(e.target.value);
+          if (e.target.value) setCompanyName("");
+        }}
       >
         <option value="">Select company...</option>
         {companies.map((c) => (
@@ -58,6 +73,16 @@ export default function JobCreateForm({
           </option>
         ))}
       </select>
+      <span className="text-xs text-slate-400">or</span>
+      <input
+        className="rounded border px-3 py-2 text-sm"
+        placeholder="Type a new company name"
+        value={companyName}
+        onChange={(e) => {
+          setCompanyName(e.target.value);
+          if (e.target.value) setCompanyId("");
+        }}
+      />
       <input
         className="flex-1 rounded border px-3 py-2"
         placeholder="Job title"
@@ -78,7 +103,10 @@ export default function JobCreateForm({
         <option value="B">B</option>
         <option value="C">C</option>
       </select>
-      <button disabled={creating} className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50">
+      <button
+        disabled={creating || !hasCompany}
+        className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
+      >
         {creating ? "Creating..." : "Create"}
       </button>
     </form>

@@ -7,6 +7,7 @@ import RoleTypePicker from "../components/RoleTypePicker";
 import TagPicker from "../components/TagPicker";
 import CustomFieldsPanel from "../components/CustomFieldsPanel";
 import JobCreateForm from "../components/JobCreateForm";
+import JobPostCreatePanel from "../components/JobPostCreatePanel";
 import CandidatePipelinePicker from "../components/CandidatePipelinePicker";
 import ScheduledEventsPanel from "../components/ScheduledEventsPanel";
 import RecordTypeDot from "../components/RecordTypeDot";
@@ -91,6 +92,7 @@ function formatShortDateTime(iso: string): string {
 export function JobsList() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showPastePanel, setShowPastePanel] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [ratingFilter, setRatingFilter] = useState<Set<string>>(new Set());
   const [q, setQ] = useState("");
@@ -195,10 +197,27 @@ export function JobsList() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Jobs</h1>
-        <button onClick={() => setShowForm((s) => !s)} className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white">
-          {showForm ? "Cancel" : "New job"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowPastePanel((s) => !s)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            {showPastePanel ? "Cancel" : "Paste job post"}
+          </button>
+          <button onClick={() => setShowForm((s) => !s)} className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white">
+            {showForm ? "Cancel" : "New job"}
+          </button>
+        </div>
       </div>
+
+      {showPastePanel && (
+        <JobPostCreatePanel
+          onCreated={() => {
+            setShowPastePanel(false);
+            load();
+          }}
+        />
+      )}
 
       {showForm && (
         <JobCreateForm

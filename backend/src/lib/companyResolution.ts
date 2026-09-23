@@ -75,22 +75,14 @@ function isFuzzyMatch(a: string, b: string): boolean {
   return levenshtein(a, b) <= maxDist;
 }
 
-// Shared by CSV import, CV parsing, and BD Opportunity conversion (see
-// opportunityConversion.ts): all let the user type a free-text company
-// name rather than pick an existing Company by ID, so all need the same
-// "find it, or create it" resolution. Accepts a transaction client too, so
-// conversion can run atomically alongside its other writes.
-//
-// Only an exact or normalized-suffix match auto-links — both are
-// confident enough to not need a human to confirm. A merely *fuzzy* match
-// (a typo-level near-miss, not a clean suffix reduction) is deliberately
-// NOT resolved here: none of this function's three callers have a place to
-// ask "did you mean X?", so a fuzzy candidate is left to fall through to
-// creating a new Company rather than risk silently linking to the wrong
-// one. CV parsing's review screen is the one flow with an interactive
-// moment to ask that question — see findFuzzyCompanyMatch below, which it
-// calls separately, before this function is ever invoked to actually save.
-export async function resolveCompanyIdByName(
+// The read-only half of resolveCompanyIdByName — an exact or
+// normalized-suffix match, without ever creating one on a miss. Shared by
+// resolveCompanyIdByName below and by job-duplicate checking (see
+// findJobDuplicates's caller in jobs.ts): checking whether a same-titled
+// Job already exists at "this" company only makes sense when the company
+// itself already exists — a brand-new company can't already have a job,
+// so that check can skip straight past without side effects.
+export async function findExistingCompanyId(
   prisma: PrismaClient | Prisma.TransactionClient,
   name: string | undefined
 ): Promise<string | undefined> {
@@ -105,7 +97,34 @@ export async function resolveCompanyIdByName(
   const normalizedInput = normalizeCompanyName(trimmed);
   const candidates = await prisma.company.findMany({ select: { id: true, name: true } });
   const normalizedMatch = candidates.find((c) => normalizeCompanyName(c.name) === normalizedInput);
-  if (normalizedMatch) return normalizedMatch.id;
+  return normalizedMatch?.id;
+}
+
+// Shared by CSV import, CV parsing, and BD Opportunity conversion (see
+// opportunityConversion.ts): all let the user type a free-text company
+// name rather than pick an existing Company by ID, so all need the same
+// "find it, or create it" resolution. Accepts a transaction client too, so
+// conversion can run atomically alongside its other writes.
+//
+// Only an exact or normalized-suffix match auto-links — both are
+// confident enough to not need a human to confirm. A merely *fuzzy* match
+// (a typo-level near-miss, not a clean suffix reduction) is deliberately
+// NOT resolved here: none of this function's callers have a place to ask
+// "did you mean X?", so a fuzzy candidate is left to fall through to
+// creating a new Company rather than risk silently linking to the wrong
+// one. CV/job-post parsing's review screens are the flows with an
+// interactive moment to ask that question — see findFuzzyCompanyMatch
+// below, which they call separately, before this function is ever invoked
+// to actually save.
+export async function resolveCompanyIdByName(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  name: string | undefined
+): Promise<string | undefined> {
+  const existing = await findExistingCompanyId(prisma, name);
+  if (existing) return existing;
+
+  const trimmed = name?.trim();
+  if (!trimmed) return undefined;
 
   const created = await prisma.company.create({ data: { name: trimmed } });
   return created.id;

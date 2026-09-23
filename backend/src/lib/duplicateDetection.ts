@@ -98,3 +98,36 @@ export async function findPersonDuplicates(
 
   return Array.from(byId.values());
 }
+
+export interface JobDuplicateCandidate {
+  companyId: string;
+  title: string;
+}
+
+export interface JobDuplicateMatch {
+  job: Prisma.JobGetPayload<{ include: { company: true } }>;
+}
+
+// Same company + exact (case-insensitive) title, not archived — the
+// signal a LinkedIn post pasted twice (by accident, or a genuine repost)
+// produces. Deliberately not fuzzy the way company names are: titles vary
+// too legitimately between genuinely different reqs ("Senior .NET
+// Developer" vs "...Engineer") for a near-miss to be a safe signal here.
+// Not time-windowed either — an old, non-archived Job with the identical
+// title at the same company is still worth a heads-up regardless of age.
+export async function findJobDuplicates(
+  prisma: PrismaClient,
+  candidate: JobDuplicateCandidate,
+  excludeJobId?: string
+): Promise<JobDuplicateMatch[]> {
+  const jobs = await prisma.job.findMany({
+    where: {
+      id: excludeJobId ? { not: excludeJobId } : undefined,
+      companyId: candidate.companyId,
+      title: { equals: candidate.title.trim(), mode: "insensitive" },
+      archivedAt: null,
+    },
+    include: { company: true },
+  });
+  return jobs.map((job) => ({ job }));
+}

@@ -3,6 +3,11 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { AuthenticatedRequest } from "../middleware/requireAuth";
 import { recordProspectsForClosedJob } from "../lib/candidateProspects";
+import { resolveCompanyIdByName, findFuzzyCompanyMatch, findExistingCompanyId } from "../lib/companyResolution";
+import { findJobDuplicates } from "../lib/duplicateDetection";
+import { extractJobFields } from "../lib/jobExtraction";
+import { guessSkills } from "../lib/cvExtraction";
+import { optionalString } from "../lib/zodHelpers";
 
 const CLOSED_JOB_STAGES = new Set(["PLACED", "REJECTED"]);
 
@@ -10,7 +15,13 @@ export const jobsRouter = Router();
 
 const jobSchema = z.object({
   title: z.string().min(1),
-  companyId: z.string().uuid(),
+  companyId: z.string().uuid().optional(),
+  // Free-text alternative to companyId — e.g. from the LinkedIn-paste flow,
+  // where extraction only ever produces a company name, not an existing
+  // record's ID. Resolved server-side to an existing Company or a newly
+  // created one (see toPrismaData); if both are given, companyName wins,
+  // same precedent as Person.currentEmployerName/currentEmployerId.
+  companyName: optionalString,
   // The recruiter's own judgement of close-likelihood/data quality — never
   // calculated, and required so nothing ends up unrated by accident.
   qualityRating: z.enum(["A", "B", "C"]),
@@ -40,15 +51,94 @@ const JOB_STAGES = [
   "REJECTED",
 ] as const;
 
-function toPrismaData(input: z.infer<typeof jobSchema>) {
-  const { essentialSkillIds, idealSkillIds, roleTypeIds, ...rest } = input;
+// Prisma's `set` (replace-the-whole-relation) only exists on an update —
+// it's what the toggle-style skill/role-type pickers on an existing Job
+// rely on (unchecking one must actually remove it, not just leave it
+// unconnected), but it's an invalid argument on `create`, where there's no
+// existing relation to replace and `connect` is the correct verb instead.
+// This never surfaced before since nothing previously called POST /
+// (create) with skill/role-type IDs attached — JobCreateForm doesn't — but
+// the LinkedIn-paste flow's skill suggestions do.
+async function toPrismaData(input: z.infer<typeof jobSchema>, mode: "create" | "update") {
+  const { essentialSkillIds, idealSkillIds, roleTypeIds, companyName, ...rest } = input;
+  const resolvedCompanyId = companyName ? await resolveCompanyIdByName(prisma, companyName) : undefined;
+  const relationVerb = mode === "create" ? "connect" : "set";
   return {
     ...rest,
-    ...(essentialSkillIds ? { essentialSkills: { set: essentialSkillIds.map((id) => ({ id })) } } : {}),
-    ...(idealSkillIds ? { idealSkills: { set: idealSkillIds.map((id) => ({ id })) } } : {}),
-    ...(roleTypeIds ? { roleTypes: { set: roleTypeIds.map((id) => ({ id })) } } : {}),
+    ...(resolvedCompanyId ? { companyId: resolvedCompanyId } : {}),
+    ...(essentialSkillIds ? { essentialSkills: { [relationVerb]: essentialSkillIds.map((id) => ({ id })) } } : {}),
+    ...(idealSkillIds ? { idealSkills: { [relationVerb]: idealSkillIds.map((id) => ({ id })) } } : {}),
+    ...(roleTypeIds ? { roleTypes: { [relationVerb]: roleTypeIds.map((id) => ({ id })) } } : {}),
   };
 }
+
+const jobParseSchema = z.object({ text: z.string().min(1) });
+
+// Pure extraction — nothing is saved here, same idiom as POST /api/cv/parse.
+// The frontend shows the drafted fields (plus jobSpecText, the raw pasted
+// text passed straight through unchanged) in an editable review form;
+// only POST / below actually persists anything.
+jobsRouter.post("/parse", async (req: AuthenticatedRequest, res) => {
+  const parsed = jobParseSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { text } = parsed.data;
+
+  let extracted;
+  try {
+    extracted = await extractJobFields(text);
+  } catch (err) {
+    return res.status(502).json({ error: err instanceof Error ? err.message : "Extraction failed" });
+  }
+
+  // A fuzzy (typo-level) near-miss against an existing Company — not
+  // confident enough for resolveCompanyIdByName to auto-link when this
+  // gets saved, so it's surfaced here for the user to confirm or dismiss,
+  // same pattern as CV parsing's employer suggestion.
+  const employerMatchSuggestion = await findFuzzyCompanyMatch(prisma, extracted.companyName);
+
+  // Candidate skills mentioned in the post, matched with the same
+  // deterministic fuzzy/synonym matcher CV parsing uses — never the LLM,
+  // and never auto-applied; shown as confirmed/suggested checkboxes for
+  // the user to approve, same as everywhere else this matcher is used.
+  const knownSkills = await prisma.skill.findMany();
+  const { confirmed, suggested } = guessSkills(text, knownSkills.map((s) => s.name));
+  const confirmedSkills = knownSkills.filter((s) => confirmed.includes(s.name));
+  const suggestedSkills = knownSkills.filter((s) => suggested.includes(s.name));
+
+  res.json({
+    extracted: {
+      ...extracted,
+      jobSpecText: text,
+      employerMatchSuggestion,
+      skills: confirmedSkills.map((s) => ({ id: s.id, name: s.name })),
+      suggestedSkills: suggestedSkills.map((s) => ({ id: s.id, name: s.name })),
+    },
+  });
+});
+
+const jobDuplicateCheckSchema = z.object({
+  companyName: z.string().min(1),
+  title: z.string().min(1),
+  excludeJobId: z.string().uuid().optional(),
+});
+
+// Pre-flight check the review UI calls before confirming a new Job, same
+// pattern as POST /api/people/check-duplicates. Takes a free-text company
+// name (not an id) and only looks the company up read-only — a brand-new
+// company can't already have a job, so nothing is created here just to
+// perform this check.
+jobsRouter.post("/check-duplicates", async (req, res) => {
+  const parsed = jobDuplicateCheckSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { companyName, title, excludeJobId } = parsed.data;
+  const companyId = await findExistingCompanyId(prisma, companyName);
+  if (!companyId) return res.json({ matches: [] });
+
+  const matches = await findJobDuplicates(prisma, { companyId, title }, excludeJobId);
+  res.json({ matches });
+});
 
 jobsRouter.get("/", async (req, res) => {
   const { q, stage, companyId, includeArchived, qualityRating, includeClosed } = req.query;
@@ -186,7 +276,10 @@ jobsRouter.post("/", async (req, res) => {
   const parsed = jobSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const job = await prisma.job.create({ data: toPrismaData(parsed.data) as any });
+  const data = await toPrismaData(parsed.data, "create");
+  if (!data.companyId) return res.status(400).json({ error: "A company is required" });
+
+  const job = await prisma.job.create({ data: data as any });
   res.status(201).json(job);
 });
 
@@ -196,7 +289,7 @@ jobsRouter.patch("/:id", async (req, res) => {
 
   const job = await prisma.job.update({
     where: { id: req.params.id },
-    data: toPrismaData(parsed.data as any) as any,
+    data: (await toPrismaData(parsed.data as any, "update")) as any,
   });
   res.json(job);
 });
