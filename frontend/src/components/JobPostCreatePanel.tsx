@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "../api/client";
 import JobDuplicateWarningModal from "./JobDuplicateWarningModal";
+import OpportunityCreateForm from "./OpportunityCreateForm";
 
 // Shorter than the api client's generous 60s default — an extraction
 // should never legitimately take this long, so a genuine hang surfaces as
@@ -51,6 +52,60 @@ interface CreatedJob {
   id: string;
 }
 
+const WORK_PREFERENCE_LABELS: Record<string, string> = { REMOTE: "Remote", HYBRID: "Hybrid", ONSITE: "Onsite" };
+
+// "£75k" for a round thousand, otherwise the raw figure — matches how a
+// recruiter would actually write it in a short summary line, not a
+// currency-formatting library's idea of precision.
+function formatThousands(value: string): string {
+  const n = Number(value);
+  if (!n) return value;
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+}
+
+function formatSalaryOrRate(form: typeof EMPTY_FORM): string | null {
+  if (form.salaryMin || form.salaryMax) {
+    if (form.salaryMin && form.salaryMax) {
+      const min = Number(form.salaryMin);
+      const max = Number(form.salaryMax);
+      // "£70-85k", not "£70k-85k" — the shared "k" suffix at the end matches
+      // how a recruiter would actually write a range, only when both ends
+      // round cleanly to thousands (otherwise show the raw figures instead
+      // of a misleadingly-rounded range).
+      if (min >= 1000 && max >= 1000 && min % 1000 === 0 && max % 1000 === 0) {
+        return `£${min / 1000}-${max / 1000}k`;
+      }
+      return `£${form.salaryMin}-${form.salaryMax}`;
+    }
+    return `£${formatThousands(form.salaryMin || form.salaryMax)}`;
+  }
+  if (form.rateMin || form.rateMax) {
+    if (form.rateMin && form.rateMax) return `£${form.rateMin}-${form.rateMax}/day`;
+    return `£${form.rateMin || form.rateMax}/day`;
+  }
+  return null;
+}
+
+// Opportunity has no fields for location/level/workPreference/salary — it's
+// deliberately lightweight (see CLAUDE.md's BD prospecting layer rule), so
+// none of these structured Job-only fields carry over as their own columns.
+// Nothing is actually lost, though: a short summary line built from
+// whichever of them are present goes above the full raw pasted text (itself
+// always kept verbatim) in the one free-text field Opportunity does have.
+function buildOpportunityNotes(form: typeof EMPTY_FORM): string {
+  const summary = [
+    form.title.trim(),
+    form.location.trim(),
+    form.level.trim(),
+    WORK_PREFERENCE_LABELS[form.workPreference] ?? "",
+    formatSalaryOrRate(form) ?? "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return [summary, form.jobSpecText].filter(Boolean).join("\n\n");
+}
+
 // Paste a LinkedIn (or similar) job posting to draft a new Job record —
 // parse, review/correct, duplicate-check, then create. Nothing is saved
 // until "Create job", same reviewable-draft pattern as CvDropCreatePanel:
@@ -64,6 +119,7 @@ export default function JobPostCreatePanel({ onCreated }: { onCreated: (job: Cre
   const [parsed, setParsed] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [createMode, setCreateMode] = useState<"job" | "opportunity">("job");
   const [qualityRating, setQualityRating] = useState("");
   const [skillOptions, setSkillOptions] = useState<SkillRef[]>([]);
   const [suggestedSkillOptions, setSuggestedSkillOptions] = useState<SkillRef[]>([]);
@@ -84,6 +140,7 @@ export default function JobPostCreatePanel({ onCreated }: { onCreated: (job: Cre
     setPastedText("");
     setParsed(false);
     setForm(EMPTY_FORM);
+    setCreateMode("job");
     setQualityRating("");
     setSkillOptions([]);
     setSuggestedSkillOptions([]);
@@ -129,6 +186,7 @@ export default function JobPostCreatePanel({ onCreated }: { onCreated: (job: Cre
       const confirmedIds = new Set(extracted.skills.map((s) => s.id));
       setSuggestedSkillOptions(extracted.suggestedSkills.filter((s) => !confirmedIds.has(s.id)));
       setEmployerMatchSuggestion(extracted.employerMatchSuggestion ?? null);
+      setCreateMode("job");
       setParsed(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not parse that job post");
@@ -218,6 +276,44 @@ export default function JobPostCreatePanel({ onCreated }: { onCreated: (job: Cre
           )}
         </form>
       ) : (
+        <div className="space-y-3">
+          <div className="flex gap-2 rounded border bg-slate-50 p-1 text-sm">
+            <button
+              type="button"
+              onClick={() => setCreateMode("job")}
+              className={`flex-1 rounded px-3 py-1.5 ${
+                createMode === "job" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Create as Job
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreateMode("opportunity")}
+              className={`flex-1 rounded px-3 py-1.5 ${
+                createMode === "opportunity" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Create as Opportunity
+            </button>
+          </div>
+
+          {createMode === "opportunity" ? (
+            <div>
+              <p className="mb-2 text-xs text-slate-500">
+                For a lead you've spotted with no confirmed intent to hire yet — this creates a lightweight BD
+                Opportunity instead, not a Job. Location/level/work arrangement/salary aren't tracked as their own
+                fields on an Opportunity, so they're folded into a summary line above the full pasted text in Notes.
+              </p>
+              <OpportunityCreateForm
+                initialCompanyQuery={form.companyName}
+                initialTitle={form.title}
+                initialNotes={buildOpportunityNotes(form)}
+                onCreated={(opportunity) => onCreated(opportunity)}
+                onCancel={() => setCreateMode("job")}
+              />
+            </div>
+          ) : (
         <form onSubmit={onSubmit} className="space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block text-sm">
@@ -401,6 +497,8 @@ export default function JobPostCreatePanel({ onCreated }: { onCreated: (job: Cre
             </button>
           </div>
         </form>
+          )}
+        </div>
       )}
 
       {duplicateMatches && (
