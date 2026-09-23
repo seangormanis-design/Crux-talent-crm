@@ -5,6 +5,7 @@ import OpportunityCreateForm from "../components/OpportunityCreateForm";
 import OpportunityStageControl from "../components/OpportunityStageControl";
 import ScheduledEventsPanel, { ScheduledEventRecord } from "../components/ScheduledEventsPanel";
 import { COMPANY_LINK_CLASS, RECORD_KIND_BORDER_CLASS } from "../lib/recordColors";
+import { summarizeOpportunityNotes } from "../lib/opportunityNotes";
 
 export const OPPORTUNITY_STAGE_LABELS: Record<string, string> = {
   IDENTIFIED: "Identified",
@@ -116,7 +117,7 @@ export default function BdFunnel() {
                   <p>
                     <OpportunityCompanyLabel opportunity={opp} />
                   </p>
-                  {opp.notes && <p className="mt-0.5 text-slate-500">{opp.notes}</p>}
+                  {opp.notes && <p className="mt-0.5 text-slate-500">{summarizeOpportunityNotes(opp.notes)}</p>}
                   {!!opp.targetContacts?.length && (
                     <p className="mt-0.5 text-slate-400">
                       {opp.targetContacts.length} target contact{opp.targetContacts.length === 1 ? "" : "s"}

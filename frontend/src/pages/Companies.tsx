@@ -13,6 +13,7 @@ import OpportunityStageControl from "../components/OpportunityStageControl";
 import CompanyTermsPanel from "../components/CompanyTermsPanel";
 import ScheduledEventsPanel from "../components/ScheduledEventsPanel";
 import { MEETING_STAGE } from "./BdFunnel";
+import { summarizeOpportunityNotes } from "../lib/opportunityNotes";
 import RecordTypeDot from "../components/RecordTypeDot";
 import RecordTypeBadge from "../components/RecordTypeBadge";
 import { fullName } from "../lib/personName";
@@ -736,7 +737,7 @@ export function CompanyDetail() {
                     <Link to={`/opportunities/${o.id}`} className="font-medium hover:underline">
                       {o.title}
                     </Link>
-                    {o.notes && <span className="text-slate-500"> — {o.notes}</span>}
+                    {o.notes && <span className="text-slate-500"> — {summarizeOpportunityNotes(o.notes)}</span>}
                   </span>
                 </div>
                 {o.stage === "LOST" && o.lostReason && (
