@@ -688,6 +688,10 @@ export function PersonDetail() {
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [expandedTranscriptIds, setExpandedTranscriptIds] = useState<Set<string>>(new Set());
+  // Interaction history entries default to collapsed (date/time/type only) —
+  // an empty Set here means nothing is expanded until clicked. Independent
+  // per entry, so several can be open at once.
+  const [expandedInteractionIds, setExpandedInteractionIds] = useState<Set<string>>(new Set());
   const [reflectingId, setReflectingId] = useState<string | null>(null);
   const [reflectError, setReflectError] = useState<string | null>(null);
   const [confirmingAnonymize, setConfirmingAnonymize] = useState(false);
@@ -766,6 +770,9 @@ export function PersonDetail() {
       // Trigger point 1: a transcript was already attached at creation time.
       if (loggedType === "QUALIFICATION_CALL" && trimmedTranscript) {
         setReviewingInteraction({ id: created.id, transcript: trimmedTranscript, existingSections: loggedSections });
+        // The new entry defaults to collapsed like every other one — expand
+        // it so the auto-triggered review panel isn't hidden the moment it appears.
+        setExpandedInteractionIds((prev) => new Set(prev).add(created.id));
       }
     } catch (err) {
       setLogInteractionError(err instanceof Error ? err.message : "Could not save this interaction");
@@ -782,6 +789,15 @@ export function PersonDetail() {
 
   function toggleTranscriptExpanded(interactionId: string) {
     setExpandedTranscriptIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(interactionId)) next.delete(interactionId);
+      else next.add(interactionId);
+      return next;
+    });
+  }
+
+  function toggleInteractionExpanded(interactionId: string) {
+    setExpandedInteractionIds((prev) => {
       const next = new Set(prev);
       if (next.has(interactionId)) next.delete(interactionId);
       else next.add(interactionId);
@@ -1218,24 +1234,35 @@ export function PersonDetail() {
         <ul className="space-y-1 text-sm">
           {(person.combinedInteractions ?? person.interactions)?.map((i: any) => {
             const hasQcSections = QC_SECTION_FIELDS.some((s) => i[s.field]?.trim());
+            const isExpanded = expandedInteractionIds.has(i.id);
             return (
             <li key={i.id} className="rounded border bg-white p-2">
-              <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
-              {i.type.replaceAll("_", " ")}
-              {i.editedAt && (
-                <span
-                  className="ml-1 text-xs italic text-slate-400"
-                  title={`Edited ${new Date(i.editedAt).toLocaleString()}${i.editedBy?.name ? ` by ${i.editedBy.name}` : ""}`}
-                >
-                  (edited)
-                </span>
-              )}
-              {person.linkedPerson && i.sourcePersonId === person.linkedPerson.id && (
-                <RecordTypeBadge kind={personRecordKind(person.linkedPerson)} className="ml-2">
-                  via {fullName(person.linkedPerson)}
-                </RecordTypeBadge>
-              )}
+              <button
+                type="button"
+                onClick={() => toggleInteractionExpanded(i.id)}
+                className="flex w-full items-center gap-1 text-left"
+                aria-expanded={isExpanded}
+              >
+                <span className="w-3 shrink-0 text-slate-400">{isExpanded ? "▾" : "▸"}</span>
+                <span className="text-slate-500">{new Date(i.occurredAt).toLocaleString()}</span> —{" "}
+                {i.type.replaceAll("_", " ")}
+                {i.editedAt && (
+                  <span
+                    className="ml-1 text-xs italic text-slate-400"
+                    title={`Edited ${new Date(i.editedAt).toLocaleString()}${i.editedBy?.name ? ` by ${i.editedBy.name}` : ""}`}
+                  >
+                    (edited)
+                  </span>
+                )}
+                {person.linkedPerson && i.sourcePersonId === person.linkedPerson.id && (
+                  <RecordTypeBadge kind={personRecordKind(person.linkedPerson)} className="ml-2">
+                    via {fullName(person.linkedPerson)}
+                  </RecordTypeBadge>
+                )}
+              </button>
 
+              {isExpanded && (
+              <div className="mt-1">
               {hasQcSections ? (
                 <div className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                   {QC_SECTION_FIELDS.map((s) => (
@@ -1392,6 +1419,8 @@ export function PersonDetail() {
                     />
                   )}
                 </div>
+              )}
+              </div>
               )}
             </li>
             );
